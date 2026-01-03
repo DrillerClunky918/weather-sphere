@@ -71,8 +71,9 @@ const cities = [
 async function main() {
   console.log(`🌱 Seeding ${cities.length} cities...`);
   
-  await prisma.weatherReport.deleteMany(); 
-  await prisma.city.deleteMany();          
+  // Clear old data so we don't get duplicates or "Unique constraint" errors
+  await prisma.weatherReport.deleteMany(); // Delete reports first (foreign key)
+  await prisma.city.deleteMany();          // Then delete cities
 
   for (const city of cities) {
     await prisma.city.create({

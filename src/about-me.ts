@@ -7,8 +7,8 @@ if (appDiv) {
     appDiv.appendChild(heading);
 
     const bio = document.createElement('p');
-    bio.innerText = "This project was built on Linux and is now thriving on Windows!";
+    bio.innerText = "";
     appDiv.appendChild(bio);
 
-    console.log("About Me logic loaded.");
+    console.log("About Me loaded.");
 }

@@ -19,9 +19,16 @@ model City {
 
 model WeatherReport {
   id        Int      @id @default(autoincrement())
+  aqi       Int      // Keeping this for legacy support
+  
+  // NEW COLUMNS
+  pm10      Float?   @default(0) 
+  pm25      Float?   @default(0) 
+
   temp      Float
-  aqi       Float
+  sources   String   @default("{}") // Stores PM2.5 breakdown
   timestamp DateTime @default(now())
+  
   city      City     @relation(fields: [cityId], references: [id])
   cityId    Int
 }
