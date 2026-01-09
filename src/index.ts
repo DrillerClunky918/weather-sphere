@@ -1,5 +1,6 @@
 // src/index.ts
 import { updateDashboard, setupSearch } from './ui';
+import './style.css';
 
 // 1. API URL (Change when backend port is different)
 const API_URL = 'http://localhost:3000/api/weather'; 

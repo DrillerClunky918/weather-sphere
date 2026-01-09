@@ -7,7 +7,12 @@ app.use(cors());
 
 app.get('/api/weather', async (req, res) => {
   const data = await prisma.city.findMany({
-      include: { reports: { take: 1, orderBy: { timestamp: 'desc' } } }
+    include: { 
+      reports: { 
+        take: 1, 
+        orderBy: { createdAt: 'desc' } 
+      } 
+    }
   });
   res.json(data);
 });

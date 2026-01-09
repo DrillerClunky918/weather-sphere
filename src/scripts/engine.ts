@@ -1,6 +1,7 @@
 import { prisma } from '../db';
 import 'dotenv/config';
 
+// --- CONFIGURATION ---
 const KEYS = {
   WAQI: process.env.WAQI_TOKEN,
   OPEN_WEATHER: process.env.OPEN_WEATHER_KEY,
@@ -8,16 +9,17 @@ const KEYS = {
   TOMORROW: process.env.TOMORROW_KEY
 };
 
-// --- FETCHERS ---
+// --- DATA FETCHERS ---
 async function fetchOpenMeteo(lat: number, lng: number) {
   try {
-    const res = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&hourly=us_aqi,pm10,pm2_5`);
+    const res = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&hourly=pm10,pm2_5,ozone,methane`);
     if (!res.ok) return null;
     const data = await res.json();
     return {
-      aqi: data.hourly.us_aqi[0],
-      pm10: data.hourly.pm10[0],
-      pm25: data.hourly.pm2_5[0]
+      pm10: data.hourly.pm10[0] || null,
+      pm25: data.hourly.pm2_5[0] || null,
+      ozone: data.hourly.ozone[0] || null,
+      methane: data.hourly.methane[0] || null
     };
   } catch (e) { return null; }
 }
@@ -29,9 +31,10 @@ async function fetchWAQI(lat: number, lng: number) {
     const data = await res.json();
     if (data.status !== 'ok') return null;
     return {
-      aqi: data.data.aqi,
       pm10: data.data.iaqi?.pm10?.v || null, 
-      pm25: data.data.iaqi?.pm25?.v || null
+      pm25: data.data.iaqi?.pm25?.v || null,
+      ozone: data.data.iaqi?.o3?.v || null,
+      methane: null // WAQI does not track CH4
     };
   } catch (e) { return null; }
 }
@@ -44,9 +47,10 @@ async function fetchOpenWeather(lat: number, lng: number) {
     const data = await res.json();
     const raw = data.list[0].components;
     return {
-      aqi: data.list[0].main.aqi * 10,
-      pm10: raw.pm10,
-      pm25: raw.pm2_5
+      pm10: raw.pm10 || null,
+      pm25: raw.pm2_5 || null,
+      ozone: raw.o3 || null,
+      methane: null // OpenWeatherMap does not track CH4
     };
   } catch (e) { return null; }
 }
@@ -58,9 +62,10 @@ async function fetchWeatherAPI(lat: number, lng: number) {
     const data = await res.json();
     const air = data.current.air_quality;
     return {
-      aqi: air['us-epa-index'] * 10,
-      pm10: air.pm10,
-      pm25: air.pm2_5
+      pm10: air.pm10 || null,
+      pm25: air.pm2_5 || null,
+      ozone: air.o3 || null,
+      methane: air.ch4 || null 
     };
   } catch (e) { return null; }
 }
@@ -73,59 +78,56 @@ async function fetchTomorrowIO(lat: number, lng: number) {
     const data = await res.json();
     const vals = data.data.values;
     return {
-      aqi: vals.epaIndex,
       pm10: vals.particulateMatter10,
-      pm25: vals.particulateMatter25
+      pm25: vals.particulateMatter25,
+      ozone: vals.ozone,
+      methane: vals.methane || null
     };
   } catch (e) { return null; }
 }
 
-// --- STATISTICAL ENGINE (STRICT 1.5 IQR) ---
+// --- STATISTICAL ENGINE ---
 type StatResult = {
-  consensus: number;
+  mean: number;
   breakdown: Record<string, { val: number | null, isOutlier: boolean }>;
 };
 
-function analyzeDistribution(inputs: { name: string, val: number | null }[]): StatResult {
-  // 1. Filter valid numbers
+function processDistribution(inputs: { name: string, val: number | null }[]): StatResult {
+  // 1. Clean Data
   const validItems = inputs.filter(i => i.val !== null && i.val > 0) as { name: string, val: number }[];
   
-  // If no data, return empty
   if (validItems.length === 0) {
     const emptyBreakdown: any = {};
     inputs.forEach(i => emptyBreakdown[i.name] = { val: null, isOutlier: false });
-    return { consensus: 0, breakdown: emptyBreakdown };
+    return { mean: 0, breakdown: emptyBreakdown };
   }
 
-  // 2. Sort values for Quartile Calculation
+  // 2. Sort
   const sorted = [...validItems].sort((a, b) => a.val - b.val);
   const values = sorted.map(i => i.val);
   
-  // 3. Calculate Q1 and Q3
-  const q1 = getQuartile(values, 0.25);
-  const q3 = getQuartile(values, 0.75);
+  // 3. IQR Calculation
+  const q1 = calculateQuartile(values, 0.25);
+  const q3 = calculateQuartile(values, 0.75);
   const iqr = q3 - q1;
   
-  // 4. Define Bounds (1.5 * IQR)
-  const lowerBound = q1 - (1.5 * iqr);
-  const upperBound = q3 + (1.5 * iqr);
+  const lowerFence = q1 - (1.5 * iqr);
+  const upperFence = q3 + (1.5 * iqr);
 
-  // 5. Identify Inliers 
-  const inliers = validItems.filter(i => i.val >= lowerBound && i.val <= upperBound);
+  // 4. Filter Outliers
+  const inliers = validItems.filter(i => i.val >= lowerFence && i.val <= upperFence);
   
-  // Result is average of inliers. If ALL are outliers (inliers.length is 0), result is 0.
-  const consensus = inliers.length > 0
+  const mean = inliers.length > 0
     ? inliers.reduce((sum, i) => sum + i.val, 0) / inliers.length
     : 0;
 
-  // 6. Build Breakdown Map
+  // 5. Breakdown for UI
   const breakdown: any = {};
   inputs.forEach(item => {
     if (item.val === null || item.val <= 0) {
       breakdown[item.name] = { val: null, isOutlier: false };
     } else {
-      // Simply check bounds.
-      const isOutlier = item.val < lowerBound || item.val > upperBound;
+      const isOutlier = item.val < lowerFence || item.val > upperFence;
       breakdown[item.name] = { 
         val: parseFloat(item.val.toFixed(1)), 
         isOutlier: isOutlier 
@@ -133,12 +135,11 @@ function analyzeDistribution(inputs: { name: string, val: number | null }[]): St
     }
   });
 
-  return { consensus, breakdown };
+  return { mean, breakdown };
 }
 
-// Helper: Quartile calculation
-function getQuartile(sorted: number[], q: number): number {
-  const pos = (sorted.length - 1) * q;
+function calculateQuartile(sorted: number[], percentile: number): number {
+  const pos = (sorted.length - 1) * percentile;
   const base = Math.floor(pos);
   const rest = pos - base;
   if (sorted[base + 1] !== undefined) {
@@ -156,6 +157,7 @@ async function updateWeather() {
     const cities = await prisma.city.findMany();
 
     for (const city of cities) {
+      // 1. Fetch
       const providers = [
         { name: 'Open-Meteo', fn: () => fetchOpenMeteo(city.lat, city.lng) },
         { name: 'WAQI',       fn: () => fetchWAQI(city.lat, city.lng) },
@@ -169,31 +171,38 @@ async function updateWeather() {
         return { name: p.name, data: val };
       }));
 
-      // Prepare Inputs
+      // 2. Prepare Inputs
       const pm25Inputs = results.map(r => ({ name: r.name, val: r.data?.pm25 || null }));
       const pm10Inputs = results.map(r => ({ name: r.name, val: r.data?.pm10 || null }));
+      const ozoneInputs = results.map(r => ({ name: r.name, val: r.data?.ozone || null }));
+      const methaneInputs = results.map(r => ({ name: r.name, val: r.data?.methane || null }));
 
-      // Run Stats
-      const statsPm25 = analyzeDistribution(pm25Inputs);
-      const statsPm10 = analyzeDistribution(pm10Inputs);
+      // 3. Calculate Stats 
+      const statsPm25 = processDistribution(pm25Inputs);
+      const statsPm10 = processDistribution(pm10Inputs);
+      const statsOzone = processDistribution(ozoneInputs);
+      const statsMethane = processDistribution(methaneInputs);
 
-      // Merge Data
+      // 4. Merge Breakdown for UI
       const combinedSources: Record<string, any> = {};
       results.forEach(r => {
         combinedSources[r.name] = {
           pm25: statsPm25.breakdown[r.name],
-          pm10: statsPm10.breakdown[r.name]
+          pm10: statsPm10.breakdown[r.name],
+          ozone: statsOzone.breakdown[r.name],
+          methane: statsMethane.breakdown[r.name]
         };
       });
 
-      console.log(`  ${city.name}: PM2.5 Consensus: ${statsPm25.consensus.toFixed(1)} | PM10 Consensus: ${statsPm10.consensus.toFixed(1)}`);
+      console.log(`  ${city.name}: PM2.5 μ=${statsPm25.mean.toFixed(1)} | Ozone μ=${statsOzone.mean.toFixed(1)}`);
 
+      // 5. Save 
       await prisma.weatherReport.create({
         data: {
-          aqi: Math.round(statsPm25.consensus * 4),
-          pm10: parseFloat(statsPm10.consensus.toFixed(2)),
-          pm25: parseFloat(statsPm25.consensus.toFixed(2)),
-          temp: 0,
+          pm10: parseFloat(statsPm10.mean.toFixed(2)),
+          pm25: parseFloat(statsPm25.mean.toFixed(2)),
+          ozone: parseFloat(statsOzone.mean.toFixed(2)),
+          methane: parseFloat(statsMethane.mean.toFixed(2)), 
           cityId: city.id,
           sources: JSON.stringify(combinedSources)
         }
