@@ -8,52 +8,20 @@
   <link rel="stylesheet" href="./src/style.css">
 </head>
 <body>
+  <nav class="navbar">
+    <div class="logo">WeatherSphere</div>
+    <div class="nav-links">
+      <a href="#/">Home</a>
+      <a href="#/dashboard">Dashboard</a>
+      <a href="#/data">Data Table</a>
+    </div>
+  </nav>
+
   <div class="container">
-    <div class="header">
-      <h1>WeatherSphere</h1>
-      <p>Air Quality Tracker</p>
-    </div>
-
-    <div class="info-grid">
-      <div class="info-card">
-        <h3>PM 2.5 <span>Fine Particles</span></h3>
-        <p>Particles &lt;2.5µm. Enter bloodstream. <br><strong>Safe limit: 12 µg/m³</strong></p>
-      </div>
-      <div class="info-card">
-        <h3>PM 10 <span>Coarse Dust</span></h3>
-        <p>Particles &lt;10µm. Irritate lungs. <br><strong>Safe limit: 50 µg/m³</strong></p>
-      </div>
-      <div class="info-card">
-        <h3>Ozone <span>O₃</span></h3>
-        <p>Ground-level smog. Respiratory irritant. <br><strong>Safe limit: 100 µg/m³</strong></p>
-      </div>
-      <div class="info-card">
-        <h3>Methane <span>CH₄</span></h3>
-        <p>Greenhouse gas. Displaces oxygen. <br><strong>Global background: ~1.9 ppm</strong></p>
-      </div>
-    </div>
-
-    <div class="search-container">
-      <input type="text" id="citySearch" class="search-input" placeholder="🔍 Search cities..." />
-    </div>
-
-    <div class="table-container">
-      <table>
-        <thead>
-          <tr>
-            <th>City</th>
-            <th>State</th>
-            <th class="col-dim">PM 2.5 <span class="unit-label">µg/m³</span></th>
-            <th class="col-dim">PM 10 <span class="unit-label">µg/m³</span></th>
-            <th class="col-dim">Ozone <span class="unit-label">µg/m³</span></th>
-            <th class="col-dim">Methane <span class="unit-label">µg/m³</span></th>
-          </tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
-      </table>
-    </div>
+    <main id="router-outlet">
+      </main>
   </div>
 
-  <script type="module" src="/src/index.ts"></script>
+  <script type="module" src="/src/frontend/router.ts"></script>
 </body>
 </html>
