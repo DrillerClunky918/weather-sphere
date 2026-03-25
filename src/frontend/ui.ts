@@ -60,18 +60,24 @@ function getVal(city: any, key: string) {
 function generateRow(city: any): string {
   const report = city.reports[0] || {};
   let sources: any = {};
-  try { sources = JSON.parse(report.sources || '{}'); } catch (e) { }
+  try { 
+    // Handle Prisma's JSON structure correctly
+    sources = typeof report.sources === 'string' ? JSON.parse(report.sources) : (report.sources || {}); 
+  } catch (e) { console.error("Source parse error", e); }
 
   const createTooltip = (metric: string, title: string) => {
     const entries = Object.entries(sources).map(([name, data]: [string, any]) => {
       const metricData = data[metric];
-      if (!metricData) return '';
       
-      let val = metricData.val ?? metricData;
+      if (!metricData || metricData.val === undefined || metricData.val === null) return '';
+      
+      let val = metricData.val;
       
       // Scaling source breakdown to match consensus PPM
       if (metric === 'methane' && typeof val === 'number') {
         val = (val / 1000).toFixed(3);
+      } else if (typeof val === 'number') {
+        val = val.toFixed(1);
       }
 
       const isOutlier = metricData.isOutlier === true;
@@ -82,7 +88,10 @@ function generateRow(city: any): string {
         </div>`;
     }).join('');
 
-    return `<div class="tooltip-content"><div class="tooltip-title">${title}</div>${entries || 'No source data'}</div>`;
+    return `<div class="tooltip-content">
+              <div class="tooltip-title">${title}</div>
+              ${entries || '<div class="source-row"><span>No API Data</span></div>'}
+            </div>`;
   };
 
   return `
