@@ -6,7 +6,17 @@ let sortConfig: { column: string, direction: 'asc' | 'desc' | null } = { column:
 export async function loadAndRenderTable() {
   try {
     const response = await fetch('http://localhost:3000/api/weather');
-    cachedCities = await response.json();
+    const rawData = await response.json();
+
+    // Data Ingestion: Scale Methane from PPB to PPM (divide by 1000)
+    // We do this here so that numerical sorting remains accurate.
+    cachedCities = rawData.map((city: any) => {
+      if (city.reports && city.reports[0] && typeof city.reports[0].methane === 'number') {
+        city.reports[0].methane = parseFloat((city.reports[0].methane / 1000).toFixed(3));
+      }
+      return city;
+    });
+
     renderSortedTable();
     setupSearch();
   } catch (error) {
@@ -57,7 +67,14 @@ function generateRow(city: any): string {
     const entries = Object.entries(sources).map(([name, data]: [string, any]) => {
       const metricData = data[metric];
       if (!metricData) return '';
-      const val = (typeof metricData === 'object' && metricData !== null) ? metricData.val : metricData;
+      
+      let val = (typeof metricData === 'object' && metricData !== null) ? metricData.val : metricData;
+      
+      // Scaling source breakdown values to match the PPM consensus
+      if (metric === 'methane' && typeof val === 'number') {
+        val = (val / 1000).toFixed(3);
+      }
+
       const isOutlier = metricData.isOutlier === true;
       return `<div class="source-row ${isOutlier ? 'outlier' : ''}">
                 <span>${name}</span>
@@ -67,6 +84,9 @@ function generateRow(city: any): string {
     return `<div class="tooltip-content"><div class="tooltip-title">${title}</div>${entries || 'No source data'}</div>`;
   };
 
+  // Displaying raw number only (units are now in the <th>)
+  const methaneDisplay = report.methane !== undefined ? report.methane : 'N/A';
+
   return `
     <tr>
       <td class="city-name">${city.name}</td>
@@ -74,7 +94,7 @@ function generateRow(city: any): string {
       <td><span class="data-cell">${report.pm25 || 0}${createTooltip('pm25', 'PM 2.5 Breakdown')}</span></td>
       <td><span class="data-cell" style="color:#94a3b8">${report.pm10 || 0}${createTooltip('pm10', 'PM 10 Breakdown')}</span></td>
       <td><span class="data-cell" style="color:#818cf8">${report.ozone || 0}${createTooltip('ozone', 'Ozone Breakdown')}</span></td>
-      <td><span class="data-cell" style="color:#10b981">${report.methane || 'N/A'}${createTooltip('methane', 'Methane Breakdown')}</span></td>
+      <td><span class="data-cell" style="color:#10b981">${methaneDisplay}${createTooltip('methane', 'Methane (PPM) Breakdown')}</span></td>
     </tr>
   `;
 }
