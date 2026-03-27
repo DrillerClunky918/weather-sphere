@@ -7,7 +7,7 @@ export function renderHome() {
       </div>
       <div class="info-card">
         <h3>Method</h3>
-        <p>We aggregate data from 5 different providers, identify outliers, and calculate a true consensus.</p>
+        <p>We aggregate data from 4 different providers, identify outliers, and calculate a true consensus.</p>
       </div>
     `;
   }
