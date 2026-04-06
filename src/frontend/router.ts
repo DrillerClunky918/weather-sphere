@@ -1,6 +1,6 @@
-import { renderHome } from './views/home';
-import { renderDashboard } from './views/dashboard';
-import { renderData } from './views/data';
+import { renderHome } from './pages/home';
+import { renderDashboard } from './pages/dashboard';
+import { renderData } from './utils/data';
 
 // This map links the URL path to the function that renders the page
 const routes: Record<string, () => void> = {

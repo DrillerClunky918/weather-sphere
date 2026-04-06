@@ -1,5 +1,5 @@
 // src/index.ts
-import { updateDashboard, setupSearch } from './ui';
+import { updateDashboard, setupSearch } from './frontend/ui';
 import './style.css';
 
 // 1. API URL (Change when backend port is different)
