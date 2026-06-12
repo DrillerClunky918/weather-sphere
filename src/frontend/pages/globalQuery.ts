@@ -14,7 +14,7 @@ export function renderGlobalQuery() {
           <input 
             type="text" 
             id="cityInput" 
-            placeholder="Enter global city target (e.g. London, Bangkok, Tokyo)..." 
+            placeholder="Enter a target city (e.g. London, Bangkok, Tokyo)..." 
             style="flex: 1; padding: 0.75rem; border-radius: 6px; border: 1px solid var(--border-muted); background: var(--bg-input); color: var(--text-main);"
             required
           />

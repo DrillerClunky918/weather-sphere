@@ -33,7 +33,7 @@ function renderBaseLayout() {
 
       <div class="controls-bar">
         <div class="control-group" style="flex: 1; max-width: 400px;">
-          <input type="text" id="citySearch" class="search-input" placeholder="Filter monitoring stations across rows..." style="margin: 0;" />
+          <input type="text" id="citySearch" class="search-input" placeholder="Search Cities across rows..." style="margin: 0;" />
         </div>
         
         <div class="control-group">
@@ -118,17 +118,28 @@ function renderTableRows() {
       const vA = getSortValue(a, sortConfig.column);
       const vB = getSortValue(b, sortConfig.column);
       if (vA === vB) return 0;
+      if (vA === -Infinity) return 1;
+      if (vB === -Infinity) return -1;
       const res = vA > vB ? 1 : -1;
       return sortConfig.direction === 'asc' ? res : -res;
     });
   }
 
+  const getArrow = (col: string) => {
+    if (sortConfig.column !== col || sortConfig.direction === null) {
+      return `<span style="opacity: 0.3; margin-left: 0.4rem; font-family: monospace;">↕</span>`;
+    }
+    return sortConfig.direction === 'asc' 
+      ? `<span style="color: var(--accent); margin-left: 0.4rem; font-family: monospace;">↑</span>` 
+      : `<span style="color: var(--accent); margin-left: 0.4rem; font-family: monospace;">↓</span>`;
+  };
+
   pHeader.innerHTML = `
     <tr style="color: var(--accent); text-transform: uppercase; font-size: 0.8rem; height: 45px;">
-      <th class="sortable" data-col="name" style="padding: 1rem; cursor: pointer;">Station</th>
-      <th style="padding: 1rem;">Region</th>
-      <th class="sortable" data-col="pm25" style="padding: 1rem; cursor: pointer;">PM 2.5 (µg/m³)</th>
-      <th class="sortable" data-col="pm10" style="padding: 1rem; cursor: pointer;">PM 10 (µg/m³)</th>
+      <th class="sortable" data-col="name" style="padding: 1rem; cursor: pointer; user-select: none;">Station ${getArrow('name')}</th>
+      <th style="padding: 1rem; user-select: none;">Region</th>
+      <th class="sortable" data-col="pm25" style="padding: 1rem; cursor: pointer; user-select: none;">PM 2.5 (µg/m³) ${getArrow('pm25')}</th>
+      <th class="sortable" data-col="pm10" style="padding: 1rem; cursor: pointer; user-select: none;">PM 10 (µg/m³) ${getArrow('pm10')}</th>
     </tr>
   `;
 
@@ -147,9 +158,22 @@ function renderTableRows() {
   document.querySelectorAll('.sortable').forEach(th => {
     (th as HTMLElement).onclick = () => {
       const col = (th as HTMLElement).dataset.col!;
-      sortConfig.direction = (sortConfig.column === col && sortConfig.direction === 'asc') ? 'desc' : 'asc';
-      sortConfig.column = col;
+      
+      if (sortConfig.column !== col) {
+        sortConfig.column = col;
+        sortConfig.direction = 'asc';
+      } else {
+        if (sortConfig.direction === 'asc') {
+          sortConfig.direction = 'desc';
+        } else if (sortConfig.direction === 'desc') {
+          sortConfig.direction = null;
+        } else {
+          sortConfig.direction = 'asc';
+        }
+      }
+      
       renderTableRows();
+      setupSearch();
     };
   });
 }

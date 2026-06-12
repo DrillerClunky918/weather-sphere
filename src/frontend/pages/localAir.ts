@@ -172,7 +172,7 @@ function updateInterpretationBox() {
 
   box.innerHTML = `
     <h4 style="margin: 0 0 0.25rem 0; color: ${meta.color}; font-size: 0.95rem; font-weight: 700;">
-      Focused Audit: Analysis for ${meta.name} Timeline
+      ${meta.name} Timeline
     </h4>
     <p style="margin: 0; font-size: 0.85rem; color: var(--text-main); line-height: 1.5;">${guideText}</p>
   `;
