@@ -1,15 +1,15 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
 datasource db {
   provider = "sqlite"
   url      = "file:./dev.db"
 }
 
+generator client {
+  provider = "prisma-client-js"
+}
+
 model City {
   id      Int             @id @default(autoincrement())
-  name    String
+  name    String          @unique
   state   String
   lat     Float
   lng     Float
@@ -19,11 +19,12 @@ model City {
 model WeatherReport {
   id        Int      @id @default(autoincrement())
   cityId    Int
-  pm25      Float
-  pm10      Float
-  ozone     Float
-  methane   Float
+  city      City     @relation(fields: [cityId], references: [id], onDelete: Cascade)
+  
+  // FIXED: Added '?' to make these optional so missing data is stored as NULL instead of 0
+  pm25      Float?    
+  pm10      Float?    
+  
   sources   String   @default("{}")
   createdAt DateTime @default(now())
-  city      City     @relation(fields: [cityId], references: [id])
 }
