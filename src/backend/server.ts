@@ -1,10 +1,20 @@
 import express from 'express';
 import cors from 'cors';
-import { prisma } from './db'; 
-const app = express();
-const PORT = 3000;
+import { prisma } from './db';
+import { startEngine } from './engine';
 
-app.use(cors());
+const app = express();
+const PORT = Number(process.env.PORT) || 3000;
+
+// --- UPDATED: Replace the two origin strings with your actual deployed URLs ---
+app.use(cors({
+  origin: [
+    'http://localhost:5173',                    // Vite dev server
+    'http://localhost:3000',                    // local backend
+    process.env.FRONTEND_URL ?? '',             // set this in Cloud Run env vars
+  ].filter(Boolean)
+}));
+
 app.use(express.json());
 
 app.get('/api/weather', async (req, res) => {
@@ -120,6 +130,9 @@ const server = app.listen(PORT, () => {
     console.error(`\n❌ SERVER CRASHED:`, err);
   }
 });
+
+// --- UPDATED: Engine now starts from server instead of running standalone ---
+startEngine();
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('\n❌ UNHANDLED REJECTION at:', promise, 'reason:', reason);
