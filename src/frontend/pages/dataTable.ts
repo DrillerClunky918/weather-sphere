@@ -1,3 +1,5 @@
+import { API_BASE } from '../config';
+
 let cachedCities: any[] = [];
 let sortConfig: { column: string, direction: 'asc' | 'desc' | null } = { column: 'name', direction: null };
 let currentActiveSource: string = 'all';
@@ -9,7 +11,8 @@ export async function loadAndRenderTable() {
   currentActiveSource = localStorage.getItem('selectedSource') || 'all';
 
   try {
-    const response = await fetch(`http://localhost:3000/api/weather?source=${currentActiveSource}`);
+    // --- UPDATED: uses API_BASE instead of hardcoded localhost ---
+    const response = await fetch(`${API_BASE}/api/weather?source=${currentActiveSource}`);
     if (!response.ok) throw new Error();
     cachedCities = await response.json();
     
