@@ -69,8 +69,9 @@ async function fetchWAQI(lat: number, lng: number, cityName: string) {
     return null;
   }
   try {
+    // --- UPDATED: token logged separately, not in URL to avoid leaking in logs ---
     const url = `https://api.waqi.info/feed/geo:${lat.toFixed(4)};${lng.toFixed(4)}/?token=${process.env.WAQI_TOKEN}`;
-    console.log(`[DEBUG WAQI] Fetching for ${cityName}: ${url}`);
+    console.log(`[DEBUG WAQI] Fetching for ${cityName}: geo:${lat.toFixed(4)};${lng.toFixed(4)}`);
     const res = await fetchWithTimeout(url);
     const data = await res.json();
     
@@ -101,8 +102,9 @@ async function fetchOpenWeather(lat: number, lng: number, cityName: string) {
     return null;
   }
   try {
-    const url = `http://api.openweathermap.org/data/2.5/air_pollution?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}&appid=${process.env.OPEN_WEATHER_KEY}`;
-    console.log(`[DEBUG OpenWeather] Fetching for ${cityName}: ${url}`);
+    // --- UPDATED: switched to https ---
+    const url = `https://api.openweathermap.org/data/2.5/air_pollution?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}&appid=${process.env.OPEN_WEATHER_KEY}`;
+    console.log(`[DEBUG OpenWeather] Fetching for ${cityName}`);
     const res = await fetchWithTimeout(url);
     
     if (!res.ok) {
@@ -133,8 +135,9 @@ async function fetchWeatherAPI(lat: number, lng: number, cityName: string) {
     return null;
   }
   try {
-    const url = `http://api.weatherapi.com/v1/current.json?key=${process.env.WEATHER_API_KEY}&q=${lat.toFixed(4)},${lng.toFixed(4)}&aqi=yes`;
-    console.log(`[DEBUG WeatherAPI] Fetching for ${cityName}: ${url}`);
+    // --- UPDATED: switched to https ---
+    const url = `https://api.weatherapi.com/v1/current.json?key=${process.env.WEATHER_API_KEY}&q=${lat.toFixed(4)},${lng.toFixed(4)}&aqi=yes`;
+    console.log(`[DEBUG WeatherAPI] Fetching for ${cityName}`);
     const res = await fetchWithTimeout(url);
     
     if (!res.ok) {
@@ -223,7 +226,15 @@ function processDistribution(inputs: { name: string, val: number | null }[]): St
   return { mean, breakdown };
 }
 
+let isRunning = false;
+
 async function updateWeather() {
+  // --- UPDATED: guard against concurrent runs ---
+  if (isRunning) {
+    console.log('⏭ Skipping sync — previous run still in progress.');
+    return;
+  }
+  isRunning = true;
   console.log("🎬 Syncing PM2.5 and PM10 using IQR filter engines...");
   try {
     const cities = await prisma.city.findMany();
@@ -297,8 +308,16 @@ async function updateWeather() {
       await new Promise(r => setTimeout(r, 50));
     }
     console.log("\n🏁 Database updated mapping complete.");
-  } catch (error) { console.error(error); }
+  } catch (error) { 
+    console.error(error); 
+  } finally {
+    // --- UPDATED: always release the lock even if an error occurs ---
+    isRunning = false;
+  }
 }
 
-updateWeather();
-setInterval(updateWeather, 60 * 60 * 1000);
+// --- UPDATED: exported so server.ts can call this; no longer runs standalone ---
+export function startEngine() {
+  updateWeather();
+  setInterval(updateWeather, 60 * 60 * 1000);
+}
