@@ -215,7 +215,7 @@ function processDistribution(inputs: { name: string, val: number | null }[]): St
       const isOutlier = item.val < lowerFence || item.val > upperFence;
       breakdown[item.name] = { 
         val: parseFloat(item.val.toFixed(2)), 
-        boxIsOutlier: isOutlier 
+        isOutlier: isOutlier 
       };
     }
   });
