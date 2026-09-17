@@ -1,34 +1,31 @@
 // prisma/schema.prisma
-datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
-}
 
 generator client {
   provider = "prisma-client-js"
 }
 
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
 model City {
-  id        Int       @id @default(autoincrement())
-  name      String
-  state     String
-  lat       Float
-  lng       Float
-  reports   WeatherReport[]
+  id      Int             @id @default(autoincrement())
+  name    String
+  state   String
+  lat     Float
+  lng     Float
+  reports WeatherReport[]
 }
 
 model WeatherReport {
   id        Int      @id @default(autoincrement())
-  aqi       Int      // Keeping this for legacy support
-  
-  // NEW COLUMNS
-  pm10      Float?   @default(0) 
-  pm25      Float?   @default(0) 
-
-  temp      Float
-  sources   String   @default("{}") // Stores PM2.5 breakdown
-  timestamp DateTime @default(now())
-  
-  city      City     @relation(fields: [cityId], references: [id])
   cityId    Int
+  city      City     @relation(fields: [cityId], references: [id])
+  pm25      Float
+  pm10      Float
+  ozone     Float
+  methane   Float
+  sources   String   @default("{}")
+  createdAt DateTime @default(now())
 }
