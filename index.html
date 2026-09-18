@@ -1,12 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>WeatherSphere Live</title>
-  </head>
-  <body style="margin: 0; padding: 0; background-color: #0f172a;">
-    <div id="app"></div>
-    <script type="module" src="/src/index.ts"></script>
-  </body>
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WeatherSphere</title>
+  <link rel="stylesheet" href="./src/style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>WeatherSphere</h1>
+      <p>Air Quality Tracker<strong class="highlight-white"></strong></p>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-card">
+        <h3>PM 2.5 <span>Fine Particles</span></h3>
+        <p>Particles &lt;2.5µm. Enter bloodstream. <br><strong>Safe limit: 12 µg/m³</strong></p>
+      </div>
+      <div class="info-card">
+        <h3>PM 10 <span>Coarse Dust</span></h3>
+        <p>Particles &lt;10µm. Irritate lungs. <br><strong>Safe limit: 50 µg/m³</strong></p>
+      </div>
+    </div>
+
+    <div class="search-container">
+      <input type="text" id="citySearch" class="search-input" placeholder="🔍 Search cities..." />
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>City</th>
+            <th>State</th>
+            <th class="col-dim">AVG PM 2.5 <span class="unit-label">µg/m³</span></th>
+            <th class="col-dim">AVG PM 10 <span class="unit-label">µg/m³</span></th>
+          </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script type="module" src="/src/index.ts"></script>
+</body>
 </html>
