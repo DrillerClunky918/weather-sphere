@@ -14,10 +14,10 @@ export function renderData() {
           <tr>
             <th class="sortable" data-sort="name">City <span class="sort-arrow"></span></th>
             <th class="sortable" data-sort="state">State <span class="sort-arrow"></span></th>
-            <th class="sortable col-dim" data-sort="pm25">PM 2.5 <span class="sort-arrow"></span></th>
-            <th class="sortable col-dim" data-sort="pm10">PM 10 <span class="sort-arrow"></span></th>
-            <th class="sortable col-dim" data-sort="ozone">Ozone <span class="sort-arrow"></span></th>
-            <th class="sortable col-dim" data-sort="methane">Methane <span class="sort-arrow"></span></th>
+            <th class="sortable col-dim" data-sort="pm25">PM 2.5 (ppm)<span class="sort-arrow"></span></th>
+            <th class="sortable col-dim" data-sort="pm10">PM 10 (ppm)<span class="sort-arrow"></span></th>
+            <th class="sortable col-dim" data-sort="ozone">Ozone (ppm)<span class="sort-arrow"></span></th>
+            <th class="sortable col-dim" data-sort="methane">Methane (ppm)<span class="sort-arrow"></span></th>
           </tr>
         </thead>
         <tbody id="tableBody"></tbody>

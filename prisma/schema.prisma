@@ -1,5 +1,3 @@
-// prisma/schema.prisma
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -21,11 +19,11 @@ model City {
 model WeatherReport {
   id        Int      @id @default(autoincrement())
   cityId    Int
-  city      City     @relation(fields: [cityId], references: [id])
   pm25      Float
   pm10      Float
   ozone     Float
   methane   Float
   sources   String   @default("{}")
   createdAt DateTime @default(now())
+  city      City     @relation(fields: [cityId], references: [id])
 }
