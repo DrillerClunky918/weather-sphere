@@ -5,8 +5,7 @@ import 'dotenv/config';
 const KEYS = {
   WAQI: process.env.WAQI_TOKEN,
   OPEN_WEATHER: process.env.OPEN_WEATHER_KEY,
-  WEATHER_API: process.env.WEATHER_API_KEY,
-  TOMORROW: process.env.TOMORROW_KEY
+  WEATHER_API: process.env.WEATHER_API_KEY
 };
 
 // --- DATA FETCHERS ---
@@ -34,7 +33,7 @@ async function fetchWAQI(lat: number, lng: number) {
       pm10: data.data.iaqi?.pm10?.v || null, 
       pm25: data.data.iaqi?.pm25?.v || null,
       ozone: data.data.iaqi?.o3?.v || null,
-      methane: null // WAQI does not track CH4
+      methane: null 
     };
   } catch (e) { return null; }
 }
@@ -50,7 +49,7 @@ async function fetchOpenWeather(lat: number, lng: number) {
       pm10: raw.pm10 || null,
       pm25: raw.pm2_5 || null,
       ozone: raw.o3 || null,
-      methane: null // OpenWeatherMap does not track CH4
+      methane: null 
     };
   } catch (e) { return null; }
 }
@@ -70,30 +69,15 @@ async function fetchWeatherAPI(lat: number, lng: number) {
   } catch (e) { return null; }
 }
 
-async function fetchTomorrowIO(lat: number, lng: number) {
-  if (!KEYS.TOMORROW) return null;
-  try {
-    const res = await fetch(`https://api.tomorrow.io/v4/weather/realtime?location=${lat},${lng}&apikey=${KEYS.TOMORROW}`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    const vals = data.data.values;
-    return {
-      pm10: vals.particulateMatter10,
-      pm25: vals.particulateMatter25,
-      ozone: vals.ozone,
-      methane: vals.methane || null
-    };
-  } catch (e) { return null; }
-}
 
 // --- STATISTICAL ENGINE ---
+
 type StatResult = {
   mean: number;
   breakdown: Record<string, { val: number | null, isOutlier: boolean }>;
 };
 
 function processDistribution(inputs: { name: string, val: number | null }[]): StatResult {
-  // 1. Clean Data
   const validItems = inputs.filter(i => i.val !== null && i.val > 0) as { name: string, val: number }[];
   
   if (validItems.length === 0) {
@@ -102,11 +86,9 @@ function processDistribution(inputs: { name: string, val: number | null }[]): St
     return { mean: 0, breakdown: emptyBreakdown };
   }
 
-  // 2. Sort
   const sorted = [...validItems].sort((a, b) => a.val - b.val);
   const values = sorted.map(i => i.val);
   
-  // 3. IQR Calculation
   const q1 = calculateQuartile(values, 0.25);
   const q3 = calculateQuartile(values, 0.75);
   const iqr = q3 - q1;
@@ -114,14 +96,12 @@ function processDistribution(inputs: { name: string, val: number | null }[]): St
   const lowerFence = q1 - (1.5 * iqr);
   const upperFence = q3 + (1.5 * iqr);
 
-  // 4. Filter Outliers
   const inliers = validItems.filter(i => i.val >= lowerFence && i.val <= upperFence);
   
   const mean = inliers.length > 0
     ? inliers.reduce((sum, i) => sum + i.val, 0) / inliers.length
     : 0;
 
-  // 5. Breakdown for UI
   const breakdown: any = {};
   inputs.forEach(item => {
     if (item.val === null || item.val <= 0) {
@@ -157,13 +137,12 @@ async function updateWeather() {
     const cities = await prisma.city.findMany();
 
     for (const city of cities) {
-      // 1. Fetch
+      // 1. Fetch from 4 providers
       const providers = [
         { name: 'Open-Meteo', fn: () => fetchOpenMeteo(city.lat, city.lng) },
         { name: 'WAQI',       fn: () => fetchWAQI(city.lat, city.lng) },
         { name: 'OpenWeather',fn: () => fetchOpenWeather(city.lat, city.lng) },
-        { name: 'WeatherAPI', fn: () => fetchWeatherAPI(city.lat, city.lng) },
-        { name: 'Tomorrow.io',fn: () => fetchTomorrowIO(city.lat, city.lng) }
+        { name: 'WeatherAPI', fn: () => fetchWeatherAPI(city.lat, city.lng) }
       ];
 
       const results = await Promise.all(providers.map(async (p) => {

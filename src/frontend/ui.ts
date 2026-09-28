@@ -8,10 +8,9 @@ export async function loadAndRenderTable() {
     const response = await fetch('http://localhost:3000/api/weather');
     const rawData = await response.json();
 
-    // Data Ingestion: Scale Methane from PPB to PPM (divide by 1000)
-    // We do this here so that numerical sorting remains accurate.
     cachedCities = rawData.map((city: any) => {
-      if (city.reports && city.reports[0] && typeof city.reports[0].methane === 'number') {
+      // Standardize Methane to PPM at the data layer
+      if (city.reports?.[0]?.methane !== undefined) {
         city.reports[0].methane = parseFloat((city.reports[0].methane / 1000).toFixed(3));
       }
       return city;
@@ -68,24 +67,23 @@ function generateRow(city: any): string {
       const metricData = data[metric];
       if (!metricData) return '';
       
-      let val = (typeof metricData === 'object' && metricData !== null) ? metricData.val : metricData;
+      let val = metricData.val ?? metricData;
       
-      // Scaling source breakdown values to match the PPM consensus
+      // Scaling source breakdown to match consensus PPM
       if (metric === 'methane' && typeof val === 'number') {
         val = (val / 1000).toFixed(3);
       }
 
       const isOutlier = metricData.isOutlier === true;
-      return `<div class="source-row ${isOutlier ? 'outlier' : ''}">
-                <span>${name}</span>
-                <span class="source-val">${isOutlier ? `<span class="strikethrough">${val}</span>` : val}</span>
-              </div>`;
+      return `
+        <div class="source-row ${isOutlier ? 'outlier' : ''}">
+          <span>${name}</span>
+          <span class="source-val ${isOutlier ? 'strikethrough' : ''}">${val}</span>
+        </div>`;
     }).join('');
+
     return `<div class="tooltip-content"><div class="tooltip-title">${title}</div>${entries || 'No source data'}</div>`;
   };
-
-  // Displaying raw number only (units are now in the <th>)
-  const methaneDisplay = report.methane !== undefined ? report.methane : 'N/A';
 
   return `
     <tr>
@@ -94,7 +92,7 @@ function generateRow(city: any): string {
       <td><span class="data-cell">${report.pm25 || 0}${createTooltip('pm25', 'PM 2.5 Breakdown')}</span></td>
       <td><span class="data-cell" style="color:#94a3b8">${report.pm10 || 0}${createTooltip('pm10', 'PM 10 Breakdown')}</span></td>
       <td><span class="data-cell" style="color:#818cf8">${report.ozone || 0}${createTooltip('ozone', 'Ozone Breakdown')}</span></td>
-      <td><span class="data-cell" style="color:#10b981">${methaneDisplay}${createTooltip('methane', 'Methane (PPM) Breakdown')}</span></td>
+      <td><span class="data-cell" style="color:#10b981">${report.methane ?? 'N/A'}${createTooltip('methane', 'Methane (PPM) Breakdown')}</span></td>
     </tr>
   `;
 }
@@ -113,6 +111,7 @@ export function setupSearch() {
 function updateSortUI() {
   document.querySelectorAll('.sortable').forEach(el => el.classList.remove('sort-asc', 'sort-desc'));
   if (sortConfig.direction) {
-    document.querySelector(`th[data-sort="${sortConfig.column}"]`)?.classList.add(`sort-${sortConfig.direction}`);
+    const targetHeader = document.querySelector(`th[data-sort="${sortConfig.column}"]`);
+    targetHeader?.classList.add(`sort-${sortConfig.direction}`);
   }
 }
