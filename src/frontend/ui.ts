@@ -1,27 +1,51 @@
-// src/frontend/ui.ts
-
 let cachedCities: any[] = [];
 let sortConfig: { column: string, direction: 'asc' | 'desc' | null } = { column: 'name', direction: null };
 
+// Load the default view (latest report for each city)
 export async function loadAndRenderTable() {
   try {
     const response = await fetch('http://localhost:3000/api/weather');
     const rawData = await response.json();
 
-    cachedCities = rawData.map((city: any) => {
-      // Standardize Methane to PPM at the data layer
-      if (city.reports?.[0]?.methane !== undefined) {
-        city.reports[0].methane = parseFloat((city.reports[0].methane / 1000).toFixed(3));
-      }
-      return city;
-    });
+    cachedCities = rawData.map((city: any) => normalizeCityData(city));
 
     renderSortedTable();
     setupSearch();
   } catch (error) {
-    const tableBody = document.getElementById('tableBody');
-    if (tableBody) tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 2rem;">Offline</td></tr>';
+    handleFetchError();
   }
+}
+
+// Fetch historical reports from the general search endpoint
+export async function filterTableByHistory(hours: number) {
+  try {
+    const fromDate = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    const response = await fetch(`http://localhost:3000/api/reports/search?from=${fromDate}&limit=200`);
+    const reports = await response.json();
+
+    // Map reports into the city structure expected by the renderer
+    cachedCities = reports.map((report: any) => {
+      const city = { ...report.city, reports: [report] };
+      return normalizeCityData(city);
+    });
+
+    renderSortedTable();
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Standardize metrics (e.g., Methane to PPM) across data sources
+function normalizeCityData(city: any) {
+  if (city.reports?.[0] && typeof city.reports[0].methane === 'number') {
+    city.reports[0].methane = parseFloat((city.reports[0].methane / 1000).toFixed(3));
+  }
+  return city;
+}
+
+function handleFetchError() {
+  const tableBody = document.getElementById('tableBody');
+  if (tableBody) tableBody.innerHTML = '<tr><td colspan="6" style="text-align:center; padding: 2rem;">Offline</td></tr>';
 }
 
 export function handleSort(column: string) {
@@ -60,20 +84,20 @@ function getVal(city: any, key: string) {
 function generateRow(city: any): string {
   const report = city.reports[0] || {};
   let sources: any = {};
+  
+  // Parse source breakdown JSON safely
   try { 
-    // Handle Prisma's JSON structure correctly
     sources = typeof report.sources === 'string' ? JSON.parse(report.sources) : (report.sources || {}); 
-  } catch (e) { console.error("Source parse error", e); }
+  } catch (e) { }
 
   const createTooltip = (metric: string, title: string) => {
     const entries = Object.entries(sources).map(([name, data]: [string, any]) => {
       const metricData = data[metric];
       
+      // Ensure we target the .val property from the distribution object
       if (!metricData || metricData.val === undefined || metricData.val === null) return '';
       
       let val = metricData.val;
-      
-      // Scaling source breakdown to match consensus PPM
       if (metric === 'methane' && typeof val === 'number') {
         val = (val / 1000).toFixed(3);
       } else if (typeof val === 'number') {
@@ -88,10 +112,11 @@ function generateRow(city: any): string {
         </div>`;
     }).join('');
 
-    return `<div class="tooltip-content">
-              <div class="tooltip-title">${title}</div>
-              ${entries || '<div class="source-row"><span>No API Data</span></div>'}
-            </div>`;
+    return `
+      <div class="tooltip-content">
+        <div class="tooltip-title">${title}</div>
+        ${entries || '<div class="source-row"><span>No API Data</span></div>'}
+      </div>`;
   };
 
   return `
