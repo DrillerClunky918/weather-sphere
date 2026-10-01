@@ -23,6 +23,6 @@
     "openmeteo": "^1.1.0"
   },
   "prisma": {
-    "seed": "node --experimental-strip-types src/seed.ts"
+    "seed": "node --experimental-strip-types src/backend/seed.ts"
   }
 }
