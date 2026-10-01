@@ -69,9 +69,7 @@ async function fetchWeatherAPI(lat: number, lng: number) {
   } catch (e) { return null; }
 }
 
-
 // --- STATISTICAL ENGINE ---
-
 type StatResult = {
   mean: number;
   breakdown: Record<string, { val: number | null, isOutlier: boolean }>;
@@ -109,7 +107,7 @@ function processDistribution(inputs: { name: string, val: number | null }[]): St
     } else {
       const isOutlier = item.val < lowerFence || item.val > upperFence;
       breakdown[item.name] = { 
-        val: parseFloat(item.val.toFixed(1)), 
+        val: parseFloat(item.val.toFixed(2)), 
         isOutlier: isOutlier 
       };
     }
@@ -131,13 +129,12 @@ function calculateQuartile(sorted: number[], percentile: number): number {
 
 // --- MAIN LOOP ---
 async function updateWeather() {
-  console.log(`\n[${new Date().toLocaleTimeString()}] Starting Update...`);
+  console.log(`\n[${new Date().toLocaleTimeString()}] Starting Global Standardized Update...`);
   
   try {
     const cities = await prisma.city.findMany();
 
     for (const city of cities) {
-      // 1. Fetch from 4 providers
       const providers = [
         { name: 'Open-Meteo', fn: () => fetchOpenMeteo(city.lat, city.lng) },
         { name: 'WAQI',       fn: () => fetchWAQI(city.lat, city.lng) },
@@ -150,19 +147,36 @@ async function updateWeather() {
         return { name: p.name, data: val };
       }));
 
-      // 2. Prepare Inputs
+      // 1. Methane Normalization (Standardizing to µg/m³)
+      const methaneInputs = results.map(r => {
+        const raw = r.data?.methane;
+        if (raw === null || raw === undefined || raw === 0) return { name: r.name, val: null };
+        
+        let normalized = raw;
+        // If raw > 100, it's ppb . Conversion: ppb * 0.656 = µg/m³
+        if (raw > 100) {
+            normalized = raw * 0.656;
+        } 
+        // If raw < 10, it's PPM. Conversion: PPM * 656 = µg/m³
+        else if (raw < 10) {
+            normalized = raw * 656;
+        }
+        // If it's between 100 and 1000, it's likely already µg/m³ - leave it alone.
+
+        return { name: r.name, val: normalized };
+      });
+
       const pm25Inputs = results.map(r => ({ name: r.name, val: r.data?.pm25 || null }));
       const pm10Inputs = results.map(r => ({ name: r.name, val: r.data?.pm10 || null }));
       const ozoneInputs = results.map(r => ({ name: r.name, val: r.data?.ozone || null }));
-      const methaneInputs = results.map(r => ({ name: r.name, val: r.data?.methane || null }));
 
-      // 3. Calculate Stats 
+      // 2. Calculate Outlier-Resistant Means
       const statsPm25 = processDistribution(pm25Inputs);
       const statsPm10 = processDistribution(pm10Inputs);
       const statsOzone = processDistribution(ozoneInputs);
       const statsMethane = processDistribution(methaneInputs);
 
-      // 4. Merge Breakdown for UI
+      // 3. Prepare Breakdown for Tooltips
       const combinedSources: Record<string, any> = {};
       results.forEach(r => {
         combinedSources[r.name] = {
@@ -173,9 +187,9 @@ async function updateWeather() {
         };
       });
 
-      console.log(`  ${city.name}: PM2.5 μ=${statsPm25.mean.toFixed(1)} | Ozone μ=${statsOzone.mean.toFixed(1)}`);
+      console.log(`  ${city.name.padEnd(15)} | Methane: ${Math.round(statsMethane.mean).toString().padStart(5)} µg/m³ | PM2.5: ${statsPm25.mean.toFixed(1)}`);
 
-      // 5. Save 
+      // 4. Persistence
       await prisma.weatherReport.create({
         data: {
           pm10: parseFloat(statsPm10.mean.toFixed(2)),
@@ -189,8 +203,13 @@ async function updateWeather() {
       
       await new Promise(r => setTimeout(r, 100));
     }
-  } catch (error) { console.error(error); }
+  } catch (error) { 
+    console.error("Critical Engine Error:", error); 
+  }
 }
 
+// Initial Run
 updateWeather();
+
+// Hourly Cycle
 setInterval(updateWeather, 60 * 60 * 1000);
