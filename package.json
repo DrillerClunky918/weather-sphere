@@ -22,7 +22,7 @@
     "express": "^4.18.0",
     "openmeteo": "^1.1.0"
   },
-"prisma": {
-  "seed": "node --experimental-strip-types src/seed.ts"
-}
+  "prisma": {
+    "seed": "node --experimental-strip-types src/seed.ts"
+  }
 }
