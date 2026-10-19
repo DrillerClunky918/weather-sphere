@@ -1,86 +1,193 @@
 import { prisma } from './db';
 import 'dotenv/config';
 
-// --- CONFIGURATION ---
-const KEYS = {
-  WAQI: process.env.WAQI_TOKEN,
-  OPEN_WEATHER: process.env.OPEN_WEATHER_KEY,
-  WEATHER_API: process.env.WEATHER_API_KEY
-};
-
-// --- DATA FETCHERS ---
-async function fetchOpenMeteo(lat: number, lng: number) {
-  try {
-    const res = await fetch(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&hourly=pm10,pm2_5,ozone,methane`);
-    if (!res.ok) return null;
-    const data = await res.json();
-    return {
-      pm10: data.hourly.pm10[0] || null,
-      pm25: data.hourly.pm2_5[0] || null,
-      ozone: data.hourly.ozone[0] || null,
-      methane: data.hourly.methane[0] || null
-    };
-  } catch (e) { return null; }
+function getCurrentHourIndex(timeArray: string[]): number {
+  const now = new Date();
+  const year = now.getUTCFullYear();
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(now.getUTCDate()).padStart(2, '0');
+  const hour = String(now.getUTCHours()).padStart(2, '0');
+  
+  const targetHourString = `${year}-${month}-${day}T${hour}:00`;
+  const idx = timeArray.indexOf(targetHourString);
+  return idx !== -1 ? idx : 0;
 }
 
-async function fetchWAQI(lat: number, lng: number) {
-  if (!KEYS.WAQI) return null;
+async function fetchWithTimeout(url: string, options = {}, timeout = 5000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
   try {
-    const res = await fetch(`https://api.waqi.info/feed/geo:${lat};${lng}/?token=${KEYS.WAQI}`);
-    const data = await res.json();
-    if (data.status !== 'ok') return null;
-    return {
-      pm10: data.data.iaqi?.pm10?.v || null, 
-      pm25: data.data.iaqi?.pm25?.v || null,
-      ozone: data.data.iaqi?.o3?.v || null,
-      methane: null 
-    };
-  } catch (e) { return null; }
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
 }
 
-async function fetchOpenWeather(lat: number, lng: number) {
-  if (!KEYS.OPEN_WEATHER) return null;
+async function fetchOpenMeteo(lat: number, lng: number, cityName: string) {
   try {
-    const res = await fetch(`http://api.openweathermap.org/data/2.5/air_pollution?lat=${lat}&lon=${lng}&appid=${KEYS.OPEN_WEATHER}`);
-    if (!res.ok) return null;
+    const cleanLat = lat.toFixed(4);
+    const cleanLng = lng.toFixed(4);
+    const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${cleanLat}&longitude=${cleanLng}&hourly=pm10,pm2_5,ozone,methane`;
+    console.log(`[DEBUG Open-Meteo] Fetching for ${cityName}: ${url}`);
+    const res = await fetchWithTimeout(url);
+    
+    if (!res.ok) {
+      console.log(`[DEBUG Open-Meteo] HTTP Error for ${cityName}: Status ${res.status}`);
+      return null;
+    }
+    
     const data = await res.json();
-    const raw = data.list[0].components;
-    return {
-      pm10: raw.pm10 || null,
-      pm25: raw.pm2_5 || null,
-      ozone: raw.o3 || null,
-      methane: null 
+    if (!data.hourly || !data.hourly.time) {
+      console.log(`[DEBUG Open-Meteo] Malformed JSON payload structure for ${cityName}`);
+      return null;
+    }
+
+    const idx = getCurrentHourIndex(data.hourly.time);
+    console.log(`[DEBUG Open-Meteo] Target Hour String matched at index ${idx} for ${cityName}`);
+
+    const result = {
+      pm25: data.hourly.pm2_5?.[idx] ?? null,
+      pm10: data.hourly.pm10?.[idx] ?? null,
+      ozone: data.hourly.ozone?.[idx] ?? null,
+      methane: data.hourly.methane?.[idx] ?? null
     };
-  } catch (e) { return null; }
+
+    console.log(`[DEBUG Open-Meteo] Parsed metrics for ${cityName}:`, result);
+    return result;
+  } catch (e: any) {
+    console.log(`[DEBUG Open-Meteo] Exception caught for ${cityName}: ${e.message}`);
+    return null;
+  }
 }
 
-async function fetchWeatherAPI(lat: number, lng: number) {
-  if (!KEYS.WEATHER_API) return null;
+async function fetchWAQI(lat: number, lng: number, cityName: string) {
+  if (!process.env.WAQI_TOKEN) {
+    console.log(`[DEBUG WAQI] Missing WAQI_TOKEN environment variable for ${cityName}`);
+    return null;
+  }
   try {
-    const res = await fetch(`http://api.weatherapi.com/v1/current.json?key=${KEYS.WEATHER_API}&q=${lat},${lng}&aqi=yes`);
+    const url = `https://api.waqi.info/feed/geo:${lat.toFixed(4)};${lng.toFixed(4)}/?token=${process.env.WAQI_TOKEN}`;
+    console.log(`[DEBUG WAQI] Fetching for ${cityName}: ${url}`);
+    const res = await fetchWithTimeout(url);
     const data = await res.json();
-    const air = data.current.air_quality;
-    return {
-      pm10: air.pm10 || null,
-      pm25: air.pm2_5 || null,
-      ozone: air.o3 || null,
-      methane: air.ch4 || null 
+    
+    if (data.status !== 'ok') {
+      console.log(`[DEBUG WAQI] API response status failed for ${cityName}: ${data.data}`);
+      return null;
+    }
+    
+    const iaqi = data.data.iaqi;
+    const result = {
+      pm25: iaqi?.pm25?.v ?? null,
+      pm10: iaqi?.pm10?.v ?? null,
+      ozone: iaqi?.o3?.v ?? null,
+      methane: null
     };
-  } catch (e) { return null; }
+
+    console.log(`[DEBUG WAQI] Parsed metrics for ${cityName}:`, result);
+    return result;
+  } catch (e: any) {
+    console.log(`[DEBUG WAQI] Exception caught for ${cityName}: ${e.message}`);
+    return null;
+  }
 }
 
-// --- STATISTICAL ENGINE ---
+async function fetchOpenWeather(lat: number, lng: number, cityName: string) {
+  if (!process.env.OPEN_WEATHER_KEY) {
+    console.log(`[DEBUG OpenWeather] Missing OPEN_WEATHER_KEY environment variable for ${cityName}`);
+    return null;
+  }
+  try {
+    const url = `http://api.openweathermap.org/data/2.5/air_pollution?lat=${lat.toFixed(4)}&lon=${lng.toFixed(4)}&appid=${process.env.OPEN_WEATHER_KEY}`;
+    console.log(`[DEBUG OpenWeather] Fetching for ${cityName}: ${url}`);
+    const res = await fetchWithTimeout(url);
+    
+    if (!res.ok) {
+      console.log(`[DEBUG OpenWeather] HTTP Error for ${cityName}: Status ${res.status}`);
+      return null;
+    }
+    
+    const data = await res.json();
+    const comps = data.list[0].components;
+    const result = {
+      pm25: comps.pm2_5 ?? null,
+      pm10: comps.pm10 ?? null,
+      ozone: comps.o3 ?? null,
+      methane: null
+    };
+
+    console.log(`[DEBUG OpenWeather] Parsed metrics for ${cityName}:`, result);
+    return result;
+  } catch (e: any) {
+    console.log(`[DEBUG OpenWeather] Exception caught for ${cityName}: ${e.message}`);
+    return null;
+  }
+}
+
+async function fetchWeatherAPI(lat: number, lng: number, cityName: string) {
+  if (!process.env.WEATHER_API_KEY) {
+    console.log(`[DEBUG WeatherAPI] Missing WEATHER_API_KEY environment variable for ${cityName}`);
+    return null;
+  }
+  try {
+    const url = `http://api.weatherapi.com/v1/current.json?key=${process.env.WEATHER_API_KEY}&q=${lat.toFixed(4)},${lng.toFixed(4)}&aqi=yes`;
+    console.log(`[DEBUG WeatherAPI] Fetching for ${cityName}: ${url}`);
+    const res = await fetchWithTimeout(url);
+    
+    if (!res.ok) {
+      console.log(`[DEBUG WeatherAPI] HTTP Error for ${cityName}: Status ${res.status}`);
+      return null;
+    }
+    
+    const data = await res.json();
+    const air = data.current?.air_quality;
+    if (!air) {
+      console.log(`[DEBUG WeatherAPI] Missing air_quality node payload fields for ${cityName}`);
+      return null;
+    }
+    
+    const result = {
+      pm25: air.pm2_5 ?? null,
+      pm10: air.pm10 ?? null,
+      ozone: air.o3 ?? null,
+      methane: air.ch4 ?? null
+    };
+
+    console.log(`[DEBUG WeatherAPI] Parsed metrics for ${cityName}:`, result);
+    return result;
+  } catch (e: any) {
+    console.log(`[DEBUG WeatherAPI] Exception caught for ${cityName}: ${e.message}`);
+    return null;
+  }
+}
+
 type StatResult = {
   mean: number;
   breakdown: Record<string, { val: number | null, isOutlier: boolean }>;
 };
 
+function calculateQuartile(sorted: number[], percentile: number): number {
+  const pos = (sorted.length - 1) * percentile;
+  const base = Math.floor(pos);
+  const rest = pos - base;
+  if (sorted[base + 1] !== undefined) {
+    return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
+  } else {
+    return sorted[base];
+  }
+}
+
 function processDistribution(inputs: { name: string, val: number | null }[]): StatResult {
-  const validItems = inputs.filter(i => i.val !== null && i.val > 0) as { name: string, val: number }[];
+  const validItems = inputs.filter(i => i.val !== null && i.val >= 0) as { name: string, val: number }[];
   
   if (validItems.length === 0) {
-    const emptyBreakdown: any = {};
-    inputs.forEach(i => emptyBreakdown[i.name] = { val: null, isOutlier: false });
+    const emptyBreakdown: Record<string, { val: number | null, isOutlier: boolean }> = {};
+    inputs.forEach(i => {
+      emptyBreakdown[i.name] = { val: null, isOutlier: false };
+    });
     return { mean: 0, breakdown: emptyBreakdown };
   }
 
@@ -98,17 +205,17 @@ function processDistribution(inputs: { name: string, val: number | null }[]): St
   
   const mean = inliers.length > 0
     ? inliers.reduce((sum, i) => sum + i.val, 0) / inliers.length
-    : 0;
+    : validItems.reduce((sum, i) => sum + i.val, 0) / validItems.length;
 
-  const breakdown: any = {};
+  const breakdown: Record<string, { val: number | null, isOutlier: boolean }> = {};
   inputs.forEach(item => {
-    if (item.val === null || item.val <= 0) {
+    if (item.val === null || item.val < 0) {
       breakdown[item.name] = { val: null, isOutlier: false };
     } else {
       const isOutlier = item.val < lowerFence || item.val > upperFence;
       breakdown[item.name] = { 
         val: parseFloat(item.val.toFixed(2)), 
-        isOutlier: isOutlier 
+        boxIsOutlier: isOutlier 
       };
     }
   });
@@ -116,100 +223,82 @@ function processDistribution(inputs: { name: string, val: number | null }[]): St
   return { mean, breakdown };
 }
 
-function calculateQuartile(sorted: number[], percentile: number): number {
-  const pos = (sorted.length - 1) * percentile;
-  const base = Math.floor(pos);
-  const rest = pos - base;
-  if (sorted[base + 1] !== undefined) {
-    return sorted[base] + rest * (sorted[base + 1] - sorted[base]);
-  } else {
-    return sorted[base];
-  }
-}
-
-// --- MAIN LOOP ---
 async function updateWeather() {
-  console.log(`\n[${new Date().toLocaleTimeString()}] Starting Global Standardized Update...`);
-  
+  console.log("🎬 Syncing PM2.5 and PM10 using IQR filter engines...");
   try {
     const cities = await prisma.city.findMany();
-
     for (const city of cities) {
-      const providers = [
-        { name: 'Open-Meteo', fn: () => fetchOpenMeteo(city.lat, city.lng) },
-        { name: 'WAQI',       fn: () => fetchWAQI(city.lat, city.lng) },
-        { name: 'OpenWeather',fn: () => fetchOpenWeather(city.lat, city.lng) },
-        { name: 'WeatherAPI', fn: () => fetchWeatherAPI(city.lat, city.lng) }
-      ];
+      console.log(`\n--- Processing Station Data Sync Block: ${city.name} ---`);
+      
+      const results = await Promise.all([
+        fetchOpenMeteo(city.lat, city.lng, city.name),
+        fetchWAQI(city.lat, city.lng, city.name),
+        fetchOpenWeather(city.lat, city.lng, city.name),
+        fetchWeatherAPI(city.lat, city.lng, city.name)
+      ]);
 
-      const results = await Promise.all(providers.map(async (p) => {
-        const val = await p.fn();
-        return { name: p.name, data: val };
-      }));
+      const providers = ['Open-Meteo', 'WAQI', 'OpenWeather', 'WeatherAPI'];
+      const compiled = providers.map((name, i) => ({ name, data: results[i] }));
 
-      // 1. Methane Normalization (Standardizing to µg/m³)
-      const methaneInputs = results.map(r => {
+      const methaneInputs = compiled.map(r => {
         const raw = r.data?.methane;
         if (raw === null || raw === undefined || raw === 0) return { name: r.name, val: null };
         
         let normalized = raw;
-        // If raw > 100, it's ppb . Conversion: ppb * 0.656 = µg/m³
-        if (raw > 100) {
-            normalized = raw * 0.656;
+        if (r.name === 'Open-Meteo') {
+          normalized = raw / 1000;
         } 
-        // If raw < 10, it's PPM. Conversion: PPM * 656 = µg/m³
-        else if (raw < 10) {
-            normalized = raw * 656;
-        }
-        // If it's between 100 and 1000, it's likely already µg/m³ - leave it alone.
-
         return { name: r.name, val: normalized };
       });
 
-      const pm25Inputs = results.map(r => ({ name: r.name, val: r.data?.pm25 || null }));
-      const pm10Inputs = results.map(r => ({ name: r.name, val: r.data?.pm10 || null }));
-      const ozoneInputs = results.map(r => ({ name: r.name, val: r.data?.ozone || null }));
+      const ozoneInputs = compiled.map(r => {
+        const raw = r.data?.ozone;
+        if (raw === null || raw === undefined || raw === 0) return { name: r.name, val: null };
 
-      // 2. Calculate Outlier-Resistant Means
+        let normalized = raw;
+        if (r.name === 'Open-Meteo') {
+          normalized = (raw * 0.51) / 1000; 
+        } else {
+          normalized = raw / 1000;
+        }
+        return { name: r.name, val: normalized };
+      });
+
+      const pm25Inputs = compiled.map(r => ({ name: r.name, val: r.data?.pm25 ?? null }));
+      const pm10Inputs = compiled.map(r => ({ name: r.name, val: r.data?.pm10 ?? null }));
+
       const statsPm25 = processDistribution(pm25Inputs);
       const statsPm10 = processDistribution(pm10Inputs);
       const statsOzone = processDistribution(ozoneInputs);
       const statsMethane = processDistribution(methaneInputs);
 
-      // 3. Prepare Breakdown for Tooltips
       const combinedSources: Record<string, any> = {};
-      results.forEach(r => {
-        combinedSources[r.name] = {
-          pm25: statsPm25.breakdown[r.name],
-          pm10: statsPm10.breakdown[r.name],
-          ozone: statsOzone.breakdown[r.name],
-          methane: statsMethane.breakdown[r.name]
+      providers.forEach(name => {
+        combinedSources[name] = {
+          pm25: statsPm25.breakdown[name],
+          pm10: statsPm10.breakdown[name],
+          ozone: statsOzone.breakdown[name],
+          methane: statsMethane.breakdown[name]
         };
       });
 
-      console.log(`  ${city.name.padEnd(15)} | Methane: ${Math.round(statsMethane.mean).toString().padStart(5)} µg/m³ | PM2.5: ${statsPm25.mean.toFixed(1)}`);
+      console.log(`[DEBUG SYNCHRONIZER] IQR Breakdown Constructed for ${city.name}:`, JSON.stringify(combinedSources));
 
-      // 4. Persistence
       await prisma.weatherReport.create({
         data: {
-          pm10: parseFloat(statsPm10.mean.toFixed(2)),
-          pm25: parseFloat(statsPm25.mean.toFixed(2)),
-          ozone: parseFloat(statsOzone.mean.toFixed(2)),
-          methane: parseFloat(statsMethane.mean.toFixed(2)), 
-          cityId: city.id,
+          city: {
+            connect: { id: city.id }
+          },
+          pm25: statsPm25.mean > 0 ? parseFloat(statsPm25.mean.toFixed(2)) : null,
+          pm10: statsPm10.mean > 0 ? parseFloat(statsPm10.mean.toFixed(2)) : null,
           sources: JSON.stringify(combinedSources)
         }
       });
-      
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 50));
     }
-  } catch (error) { 
-    console.error("Critical Engine Error:", error); 
-  }
+    console.log("\n🏁 Database updated mapping complete.");
+  } catch (error) { console.error(error); }
 }
 
-// Initial Run
 updateWeather();
-
-// Hourly Cycle
 setInterval(updateWeather, 60 * 60 * 1000);
