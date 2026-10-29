@@ -6,7 +6,7 @@ export function renderGlobalQuery() {
     <div class="container">
       <div class="header" style="text-align: center;">
         <h1>Live Search</h1>
-        <p style="color: var(--text-muted);">Query real-time particulate metrics anywhere on Earth via open client-side geocoding.</p>
+        <p style="color: var(--text-muted);">Search for any city worldwide to see its live dust, smoke, and particulate levels.</p>
       </div>
 
       <div class="dashboard-section" style="background: var(--bg-card); padding: 2rem; border-radius: 8px; border: 1px solid var(--border-muted); max-width: 650px; margin: 0 auto;">
@@ -77,6 +77,26 @@ async function handleAuditSubmit(e: Event) {
       `;
         }
 
+        let airStatus = { 
+            text: 'Good', 
+            color: '#4ade80', 
+            description: 'Particulate levels are within the safe daily exposure limits recommended by the World Health Organization.' 
+        };
+
+        if (pm25 > 15 && pm25 <= 35) {
+            airStatus = { 
+                text: 'Moderate', 
+                color: '#fbbf24', 
+                description: 'Levels slightly exceed recommended limits. Sensitive individuals should monitor outdoor activity.' 
+            };
+        } else if (pm25 > 35) {
+            airStatus = { 
+                text: 'Poor', 
+                color: '#f87171', 
+                description: 'Elevated particulate matter detected. Mask usage or reducing prolonged outdoor exposure is advised.' 
+            };
+        }
+
         output.innerHTML = `
       <div style="border-top: 1px solid var(--border-muted); padding-top: 1.5rem; margin-top: 1rem;">
         <h3 style="color: var(--text-main); margin-bottom: 0.5rem;">Live Open-Meteo Report: ${name} (${country})</h3>
@@ -91,6 +111,16 @@ async function handleAuditSubmit(e: Event) {
             <div style="font-size: 0.85rem; color: var(--text-muted);">PM 10</div>
             <div style="font-size: 1.75rem; font-weight: bold; color: var(--text-main); margin-top: 0.25rem;">${pm10} <span style="font-size: 1rem; color: var(--text-muted);">µg/m³</span></div>
           </div>
+        </div>
+
+        <div style="margin-top: 1.5rem; padding: 1.25rem; background: var(--bg-input); border-radius: 6px; border: 1px solid var(--border-muted); text-align: left;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+            <span style="font-size: 0.9rem; color: var(--text-muted); font-weight: 500;">Interpretation:</span>
+            <strong style="font-size: 0.95rem; color: ${airStatus.color}; text-transform: uppercase; letter-spacing: 0.05em;">${airStatus.text}</strong>
+          </div>
+          <p style="margin: 0; font-size: 0.95rem; color: var(--text-main); line-height: 1.5;">
+            ${airStatus.description}
+          </p>
         </div>
         
         ${alertMarkup}

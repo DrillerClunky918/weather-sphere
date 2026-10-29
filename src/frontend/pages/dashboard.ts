@@ -11,46 +11,50 @@ export function renderDashboard() {
     if (!outlet) return;
 
     outlet.innerHTML = `
-    <div class="header">
-      <h1>Advanced Particulate Analytics</h1>
-      <p>Visualizing microscopic mass fractions across a 7-day trend line.</p>
-    </div>
-
-    <div class="controls-bar" style="margin-bottom: 2rem; display: flex; gap: 1.5rem; align-items: flex-end;">
-      <div class="control-group">
-        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">Select Station Node</label>
-        <select id="cityDropdown">
-          <option value="">Loading...</option>
-        </select>
+    <div class="container" style="max-width: 1600px; margin: 0 auto; padding: 4rem 1.5rem; display: flex; flex-direction: column;">
+      
+      <div class="header" style="margin-bottom: 2.5rem; text-align: left;">
+        <h1 style="font-size: 2.5rem; margin: 0; letter-spacing: -0.03em;">Advanced Particulate Analytics</h1>
+        <p style="color: var(--text-muted); font-size: 1.1rem; margin-top: 0.5rem; margin-bottom: 0;">Visualizing microscopic mass fractions across a 7-day trend line.</p>
       </div>
 
-      <div class="control-group">
-        <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted);">Audit Source</label>
-        <select id="sourceDropdown">
-          <option value="all">All Sources (Merged Average)</option>
-          <option value="Open-Meteo">Open-Meteo</option>
-          <option value="WAQI">WAQI (World Air Quality Index)</option>
-          <option value="OpenWeather">OpenWeather</option>
-          <option value="WeatherAPI">WeatherAPI</option>
-        </select>
-      </div>
-
-      <button id="updateChartBtn" class="btn-primary">Refresh Trends</button>
-    </div>
-
-    <div class="dashboard-section" style="background: var(--bg-card); padding: 1.5rem; border-radius: 8px; border: 1px solid var(--border-muted);">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-        <div>
-          <h2 style="margin: 0; color: var(--text-main); font-size: 1.5rem;">Mass Concentration Fractions</h2>
+      <div class="controls-bar" style="margin-bottom: 2rem; display: flex; flex-wrap: wrap; gap: 1.5rem; align-items: flex-end; width: 100%;">
+        <div class="control-group" style="flex: 1; min-width: 200px;">
+          <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;">Select Station</label>
+          <select id="cityDropdown" style="width: 100%; padding: 0.65rem; border-radius: 6px; border: 1px solid var(--border-muted); background: var(--bg-input); color: var(--text-main);">
+            <option value="">Loading...</option>
+          </select>
         </div>
-        <div class="checkbox-group" style="display: flex; gap: 1rem;">
-          <label><input type="checkbox" class="particulate-check" value="pm25" checked> PM 2.5</label>
-          <label><input type="checkbox" class="particulate-check" value="pm10" checked> PM 10</label>
+
+        <div class="control-group" style="flex: 1; min-width: 200px;">
+          <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.9rem;"> Source Provider </label>
+          <select id="sourceDropdown" style="width: 100%; padding: 0.65rem; border-radius: 6px; border: 1px solid var(--border-muted); background: var(--bg-input); color: var(--text-main);">
+            <option value="all">All Sources (Merged Average)</option>
+            <option value="Open-Meteo">Open-Meteo</option>
+            <option value="WAQI">WAQI (World Air Quality Index)</option>
+            <option value="OpenWeather">OpenWeather</option>
+            <option value="WeatherAPI">WeatherAPI</option>
+          </select>
+        </div>
+
+        <button id="updateChartBtn" class="btn-primary" style="padding: 0.65rem 1.5rem; height: 42px; border-radius: 6px;">Refresh Trends</button>
+      </div>
+
+      <div class="dashboard-section" style="background: var(--bg-card); padding: 1.75rem; border-radius: 8px; border: 1px solid var(--border-muted); width: 100%; box-sizing: border-box;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+          <div>
+            <h2 style="margin: 0; color: var(--text-main); font-size: 1.35rem; font-weight: 600;">Mass Concentration Fractions</h2>
+          </div>
+          <div class="checkbox-group" style="display: flex; gap: 1.25rem; font-size: 0.95rem; color: var(--text-main);">
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="particulate-check" value="pm25" checked style="cursor: pointer;"> PM 2.5</label>
+            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;"><input type="checkbox" class="particulate-check" value="pm10" checked style="cursor: pointer;"> PM 10</label>
+          </div>
+        </div>
+        <div class="chart-wrapper" style="position: relative; height: 420px; width: 100%;">
+          <canvas id="particulatesChartCanvas"></canvas>
         </div>
       </div>
-      <div class="chart-wrapper" style="position: relative; height: 450px; width: 100%;">
-        <canvas id="particulatesChartCanvas"></canvas>
-      </div>
+
     </div>
   `;
 

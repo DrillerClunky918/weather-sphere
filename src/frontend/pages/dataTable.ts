@@ -37,9 +37,9 @@ function renderBaseLayout() {
         </div>
         
         <div class="control-group">
-          <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;">Audit Source</label>
+          <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;"> Source Provider </label>
           <select id="sourceDropdown">
-            <option value="all">All Sources (Merged Average - IQR Outlier Trimmed)</option>
+            <option value="all">All Sources (Merged Average)</option>
             <option value="Open-Meteo">Open-Meteo</option>
             <option value="WAQI">WAQI (World Air Quality Index)</option>
             <option value="OpenWeather">OpenWeather</option>

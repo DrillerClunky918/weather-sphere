@@ -70,7 +70,7 @@ function renderPageLayout(city: string, country: string, latitude: number, longi
   outlet.innerHTML = `
     <div class="container">
       <div class="header" style="margin-bottom: 1.5rem;">
-        <h1 style="font-size: 2rem;">Your Air Profile</h1>
+        <h1 style="font-size: 2rem;">Your City's Air Profile</h1>
         <p style="color: var(--text-muted); font-size: 0.9rem;">${city}, ${country} — Coordinates: ${latitude.toFixed(2)}°N, ${longitude.toFixed(2)}°E</p>
       </div>
 
