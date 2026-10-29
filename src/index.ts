@@ -1,9 +1,9 @@
-import { handleRouting } from './frontend/router.js';
+// src/index.ts
+import { handleRouting } from './frontend/router'; 
 import './style.css';
 
-function initApp() {
+function initApp(): void {
   handleRouting();
 }
 
-// Start the application
-  initApp();
+initApp();
