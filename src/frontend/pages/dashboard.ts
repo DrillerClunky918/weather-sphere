@@ -1,5 +1,6 @@
 import Chart from 'chart.js/auto';
 import 'chartjs-adapter-date-fns';
+import { API_BASE } from '../config';
 
 let particulatesChart: Chart | null = null;
 
@@ -71,25 +72,31 @@ export function renderDashboard() {
 async function populateCities() {
     const dropdown = document.getElementById('cityDropdown') as HTMLSelectElement;
     try {
-        const res = await fetch('http://localhost:3000/api/weather');
+        // --- UPDATED: uses API_BASE instead of hardcoded localhost ---
+        const res = await fetch(`${API_BASE}/api/weather`);
         const cities = await res.json();
         dropdown.innerHTML = cities.map((c: any) => `<option value="${c.id}">${c.name}</option>`).join('');
 
         const lastId = localStorage.getItem('selectedCityId');
         const lastSource = localStorage.getItem('selectedSource');
 
-        if (lastId) dropdown.value = lastId;
+        // --- UPDATED: validate stored city ID still exists before applying ---
+        const validIds = cities.map((c: any) => String(c.id));
+        if (lastId && validIds.includes(lastId)) {
+          dropdown.value = lastId;
+        }
         
         const sourceDropdown = document.getElementById('sourceDropdown') as HTMLSelectElement;
         if (sourceDropdown && lastSource) {
             sourceDropdown.value = lastSource;
         }
 
-        if (lastId) {
+        if (dropdown.value) {
             updateAnalytics();
         }
     } catch (e) {
-        dropdown.innerHTML = '<option>Error</option>';
+        dropdown.innerHTML = '<option>Error loading stations</option>';
+        console.error('Failed to load cities:', e);
     }
 }
 
@@ -107,7 +114,8 @@ async function updateAnalytics() {
     const activeParticulates = Array.from(document.querySelectorAll('.particulate-check:checked'))
         .map(cb => (cb as HTMLInputElement).value);
 
-    const res = await fetch(`http://localhost:3000/api/proxy/trends/${cityId}?source=${source}`);
+    // --- UPDATED: uses API_BASE instead of hardcoded localhost ---
+    const res = await fetch(`${API_BASE}/api/proxy/trends/${cityId}?source=${source}`);
     const data = await res.json();
 
     if (particulatesChart) particulatesChart.destroy();
