@@ -1,26 +1,38 @@
-import { API_BASE } from '../config';
+import { STATIC_CITIES } from '../config';
 
 let cachedCities: any[] = [];
 let sortConfig: { column: string, direction: 'asc' | 'desc' | null } = { column: 'name', direction: null };
-let currentActiveSource: string = 'all';
 
 export async function loadAndRenderTable() {
   const outlet = document.getElementById('router-outlet');
   if (!outlet) return;
 
-  currentActiveSource = localStorage.getItem('selectedSource') || 'all';
-
   try {
-    // --- UPDATED: uses API_BASE instead of hardcoded localhost ---
-    const response = await fetch(`${API_BASE}/api/weather?source=${currentActiveSource}`);
-    if (!response.ok) throw new Error();
-    cachedCities = await response.json();
+    const fetchPromises = STATIC_CITIES.map(async (city) => {
+      const url = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${city.lat}&longitude=${city.lon}&current=pm2_5,pm10`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error();
+      const json = await res.json();
+      
+      return {
+        id: city.id,
+        name: city.name,
+        state: city.state,
+        reports: [{
+          pm25: json.current?.pm2_5 ?? null,
+          pm10: json.current?.pm10 ?? null,
+          sources: null
+        }]
+      };
+    });
+
+    cachedCities = await Promise.all(fetchPromises);
     
     renderBaseLayout();
     renderTableRows();
     setupSearch();
   } catch (error) {
-    outlet.innerHTML = `<div class="header"><h1>Offline</h1></div>`;
+    outlet.innerHTML = `<div class="header"><h1>Offline - Telemetry Unreachable</h1></div>`;
   }
 }
 
@@ -38,17 +50,6 @@ function renderBaseLayout() {
         <div class="control-group" style="flex: 1; max-width: 400px;">
           <input type="text" id="citySearch" class="search-input" placeholder="Search Cities across rows..." style="margin: 0;" />
         </div>
-        
-        <div class="control-group">
-          <label style="display: block; margin-bottom: 0.5rem; color: var(--text-muted); font-size: 0.85rem;"> Source Provider </label>
-          <select id="sourceDropdown">
-            <option value="all">All Sources (Merged Average)</option>
-            <option value="Open-Meteo">Open-Meteo</option>
-            <option value="WAQI">WAQI (World Air Quality Index)</option>
-            <option value="OpenWeather">OpenWeather</option>
-            <option value="WeatherAPI">WeatherAPI</option>
-          </select>
-        </div>
       </div>
 
       <div class="section-title-wrap" style="margin-bottom: 1rem;">
@@ -62,52 +63,13 @@ function renderBaseLayout() {
       </div>
     </div>
   `;
-
-  const dropdown = document.getElementById('sourceDropdown') as HTMLSelectElement;
-  if (dropdown) {
-    dropdown.value = currentActiveSource;
-    dropdown.addEventListener('change', () => {
-      localStorage.setItem('selectedSource', dropdown.value);
-      loadAndRenderTable();
-    });
-  }
 }
 
 function generateTooltipHtml(metricKey: string, sourcesJsonStr: string, finalVal: number | undefined | null): string {
   if (finalVal === undefined || finalVal === null || isNaN(finalVal)) {
     return `<span style="color: var(--border-muted);">--</span>`;
   }
-  
-  const formattedFinal = finalVal.toFixed(2);
-  if (currentActiveSource !== 'all') return formattedFinal;
-  if (!sourcesJsonStr) return formattedFinal;
-  
-  try {
-    const allSources = JSON.parse(sourcesJsonStr);
-    let lines = '';
-    
-    for (const [provider, metrics] of Object.entries(allSources)) {
-      const metricObj = (metrics as any)[metricKey];
-      if (!metricObj || metricObj.val === null) continue;
-
-      if (metricObj.isOutlier) {
-        lines += `<div class="crossed-out">${provider}: ${metricObj.val.toFixed(2)} µg/m³ (Outlier Ignored)</div>`;
-      } else {
-        lines += `<div>${provider}: ${metricObj.val.toFixed(2)} µg/m³</div>`;
-      }
-    }
-
-    if (!lines) return formattedFinal;
-
-    return `
-      <div class="tt-cell">
-        ${formattedFinal}
-        <div class="tt-box">${lines}</div>
-      </div>
-    `;
-  } catch (e) {
-    return formattedFinal;
-  }
+  return finalVal.toFixed(2);
 }
 
 function renderTableRows() {

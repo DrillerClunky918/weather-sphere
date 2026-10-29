@@ -1,0 +1,33 @@
+name: Deploy WeatherSphere
+
+on: [push]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node and Cache
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install and Build
+        run: |
+          npm ci # 'npm ci' is faster and cleaner for CI/CD than 'npm install'
+          npm run build
+          
+      - name: Publish to Codeberg Pages via Direct Git
+        run: |
+          cd dist
+          git init -b pages
+          git config user.name "Forgejo Runner"
+          git config user.email "runner@forgejo.local"
+          
+          git add .
+          git commit -m "deploy: static client-side build"
+          
+          git push -f https://x-access-token:${{ secrets.GITHUB_TOKEN || forge.token }}@codeberg.org/${{ github.repository || forge.repository }}.git pages
