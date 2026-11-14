@@ -1,53 +1,38 @@
-/* --- Theme: Gruvbox Dark (Default) --- */
+/* --- Theme: WeatherSphere Atmosphere — Dark (Default) --- */
 :root {
-  --gb-bg0-hard: #1d2021;
-  --gb-bg0: #282828;
-  --gb-bg1: #3c3836;
-  --gb-bg2: #504945;
-  --gb-bg3: #665c54;
-  --gb-fg0: #fbf1c7;
-  --gb-fg1: #ebdbb2;
-  --gb-fg4: #a89984;
+  --bg-dark: #0b1120;
+  --bg-card: #111827;
+  --bg-surface: #1e293b;
+  --bg-surface-hover: #334155;
+  --bg-input: #090e1a;
+  --border-muted: #263244;
 
-  --gb-red: #fb4934;
-  --gb-green: #b8bb26;
-  --gb-yellow: #fabd2f;
-  --gb-blue: #83a598;
-  --gb-purple: #d3869b;
-  --gb-aqua: #8ec07c;
-  --gb-orange: #fe8019;
+  --text-main: #e2e8f0;
+  --text-strong: #f8fafc;
+  --text-muted: #94a3b8;
 
-  --bg-dark: var(--gb-bg0-hard);
-  --bg-card: var(--gb-bg0);
-  --bg-surface: var(--gb-bg1);
-  --bg-surface-hover: var(--gb-bg2);
-  --bg-input: var(--gb-bg0-hard);
-  --border-muted: var(--gb-bg2);
-  --text-main: var(--gb-fg1);
-  --text-strong: var(--gb-fg0);
-  --text-muted: var(--gb-fg4);
-  --accent: var(--gb-aqua);
-  --accent-secondary: var(--gb-yellow);
-  --btn-text: var(--gb-bg0-hard);
-  --error-color: var(--gb-red);
-  --success-color: var(--gb-green);
+  --accent: #38bdf8;
+  --accent-secondary: #818cf8;
+  --btn-text: #06101f;
+  --error-color: #f87171;
+  --success-color: #34d399;
 
-  --status-good: var(--gb-green);
-  --status-good-bg: rgba(184, 187, 38, 0.14);
-  --status-fair: var(--gb-yellow);
-  --status-fair-bg: rgba(250, 189, 47, 0.14);
-  --status-sensitive: var(--gb-orange);
-  --status-sensitive-bg: rgba(254, 128, 25, 0.14);
-  --status-poor: var(--gb-red);
-  --status-poor-bg: rgba(251, 73, 52, 0.14);
+  --status-good: #34d399;
+  --status-good-bg: rgba(52, 211, 153, 0.14);
+  --status-fair: #fbbf24;
+  --status-fair-bg: rgba(251, 191, 36, 0.14);
+  --status-sensitive: #fb923c;
+  --status-sensitive-bg: rgba(251, 146, 60, 0.14);
+  --status-poor: #f87171;
+  --status-poor-bg: rgba(248, 113, 113, 0.14);
 
-  --pm25-color: var(--gb-red);
-  --pm10-color: var(--gb-blue);
-  --no2-color: var(--gb-purple);
-  --ozone-color: var(--gb-yellow);
-  --so2-color: var(--gb-orange);
-  --co-color: var(--gb-fg4);
-  --methane-color: var(--gb-green);
+  --pm25-color: #fb7185;
+  --pm10-color: #38bdf8;
+  --no2-color: #e879f9;
+  --ozone-color: #fbbf24;
+  --so2-color: #a78bfa;
+  --co-color: #cbd5e1;
+  --methane-color: #34d399;
 
   /* Compatibility aliases for unedited pages */
   --ctp-crust: var(--bg-dark);
@@ -55,59 +40,52 @@
   --ctp-base: var(--bg-card);
   --ctp-surface0: var(--bg-surface);
   --ctp-surface1: var(--bg-surface-hover);
-  --ctp-surface2: var(--gb-bg3);
+  --ctp-surface2: #475569;
   --ctp-text: var(--text-main);
   --ctp-subtext0: var(--text-muted);
-  --ctp-blue: var(--gb-blue);
-  --ctp-mauve: var(--gb-purple);
-  --ctp-green: var(--gb-green);
-  --ctp-yellow: var(--gb-yellow);
-  --ctp-peach: var(--gb-orange);
-  --ctp-red: var(--gb-red);
+  --ctp-blue: var(--accent);
+  --ctp-mauve: var(--accent-secondary);
+  --ctp-green: var(--status-good);
+  --ctp-yellow: var(--status-fair);
+  --ctp-peach: var(--status-sensitive);
+  --ctp-red: var(--status-poor);
 }
 
-/* --- Theme: Gruvbox Light --- */
+/* --- Theme: WeatherSphere Atmosphere — Light --- */
 [data-theme="light"] {
-  --gb-bg0-hard: #f9f5d7;
-  --gb-bg0: #fbf1c7;
-  --gb-bg1: #ebdbb2;
-  --gb-bg2: #d5c4a1;
-  --gb-bg3: #bdae93;
-  --gb-fg0: #282828;
-  --gb-fg1: #3c3836;
-  --gb-fg4: #665c54;
-
-  --gb-red: #9d0006;
-  --gb-green: #79740e;
-  --gb-yellow: #b57614;
-  --gb-blue: #076678;
-  --gb-purple: #8f3f71;
-  --gb-aqua: #427b58;
-  --gb-orange: #af3a03;
-
-  --bg-dark: var(--gb-bg0-hard);
-  --bg-card: var(--gb-bg0);
-  --bg-surface: var(--gb-bg1);
-  --bg-surface-hover: var(--gb-bg2);
+  --bg-dark: #f1f5f9;
+  --bg-card: #ffffff;
+  --bg-surface: #e2e8f0;
+  --bg-surface-hover: #cbd5e1;
   --bg-input: #ffffff;
-  --border-muted: var(--gb-bg2);
-  --text-main: var(--gb-fg1);
-  --text-strong: var(--gb-fg0);
-  --text-muted: var(--gb-fg4);
-  --accent: var(--gb-aqua);
-  --accent-secondary: var(--gb-blue);
-  --btn-text: #fbf1c7;
-  --error-color: var(--gb-red);
-  --success-color: var(--gb-green);
+  --border-muted: #cbd5e1;
 
-  --status-good: var(--gb-green);
-  --status-good-bg: rgba(121, 116, 14, 0.14);
-  --status-fair: var(--gb-yellow);
-  --status-fair-bg: rgba(181, 118, 20, 0.14);
-  --status-sensitive: var(--gb-orange);
-  --status-sensitive-bg: rgba(175, 58, 3, 0.14);
-  --status-poor: var(--gb-red);
-  --status-poor-bg: rgba(157, 0, 6, 0.14);
+  --text-main: #1e293b;
+  --text-strong: #0f172a;
+  --text-muted: #64748b;
+
+  --accent: #0284c7;
+  --accent-secondary: #4f46e5;
+  --btn-text: #ffffff;
+  --error-color: #dc2626;
+  --success-color: #059669;
+
+  --status-good: #059669;
+  --status-good-bg: rgba(5, 150, 105, 0.12);
+  --status-fair: #d97706;
+  --status-fair-bg: rgba(217, 119, 6, 0.12);
+  --status-sensitive: #ea580c;
+  --status-sensitive-bg: rgba(234, 88, 12, 0.12);
+  --status-poor: #dc2626;
+  --status-poor-bg: rgba(220, 38, 38, 0.12);
+
+  --pm25-color: #e11d48;
+  --pm10-color: #0284c7;
+  --no2-color: #c026d3;
+  --ozone-color: #d97706;
+  --so2-color: #7c3aed;
+  --co-color: #475569;
+  --methane-color: #059669;
 }
 
 * {
@@ -602,7 +580,7 @@ select {
   cursor: pointer;
   outline: none;
   min-width: 200px;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2383a598' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
   background-repeat: no-repeat;
   background-position: right 10px center;
 }
