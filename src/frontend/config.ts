@@ -2,12 +2,15 @@ import Chart from 'chart.js/auto';
 
 export const API_BASE = '';
 
+export type TimeHorizon = 'historical' | 'both' | 'forecast';
+
 export interface CityStation {
   id: string;
   name: string;
   state: string;
   lat: number;
   lon: number;
+  isUserCity?: boolean;
 }
 
 export const STATIC_CITIES: CityStation[] = [
@@ -20,8 +23,70 @@ export const STATIC_CITIES: CityStation[] = [
   { id: '7', name: 'Mumbai', state: 'MH', lat: 19.07, lon: 72.88 },
   { id: '8', name: 'Cairo', state: 'CRA', lat: 30.04, lon: 31.24 },
   { id: '9', name: 'São Paulo', state: 'SP', lat: -23.55, lon: -46.63 },
-  { id: '10', name: 'Cape Town', state: 'WC', lat: -33.93, lon: 18.42 }
+  { id: '10', name: 'Cape Town', state: 'WC', lat: -33.93, lon: 18.42 },
+  { id: '11', name: 'Zurich', state: 'ZH', lat: 47.37, lon: 8.54 },
+  { id: '12', name: 'Reykjavik', state: 'IS', lat: 64.15, lon: -21.94 }
 ];
+
+const TRACKED_CITIES_KEY = 'weathersphere_tracked_cities_v1';
+const USER_CITY_KEY = 'weathersphere_user_city_v1';
+
+export function getTrackedCities(): CityStation[] {
+  try {
+    const raw = localStorage.getItem(TRACKED_CITIES_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+    }
+  } catch {
+    // Ignore storage read errors
+  }
+  return [...STATIC_CITIES];
+}
+
+export function saveTrackedCities(cities: CityStation[]): void {
+  try {
+    localStorage.setItem(TRACKED_CITIES_KEY, JSON.stringify(cities));
+  } catch {
+    // Ignore storage write errors
+  }
+}
+
+export function resetTrackedCities(): CityStation[] {
+  const defaults = [...STATIC_CITIES];
+  const userCity = getSavedUserCity();
+  if (userCity && !defaults.some((c) => c.name.toLowerCase() === userCity.name.toLowerCase())) {
+    defaults.unshift(userCity);
+  }
+  saveTrackedCities(defaults);
+  return defaults;
+}
+
+export function getSavedUserCity(): CityStation | null {
+  try {
+    const raw = localStorage.getItem(USER_CITY_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+export function syncUserDetectedCity(city: Omit<CityStation, 'id'>): void {
+  const userStation: CityStation = {
+    ...city,
+    id: `user-${city.name.toLowerCase().replace(/\s+/g, '-')}`,
+    isUserCity: true
+  };
+  try {
+    localStorage.setItem(USER_CITY_KEY, JSON.stringify(userStation));
+    const current = getTrackedCities().filter((c) => !c.isUserCity);
+    if (!current.some((c) => c.name.toLowerCase() === userStation.name.toLowerCase())) {
+      saveTrackedCities([userStation, ...current]);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 export interface PollutantInfo {
   key: string;
@@ -45,7 +110,7 @@ export const POLLUTANTS: Record<string, PollutantInfo> = {
     good: 10,
     fair: 25,
     yAxisID: 'y',
-    guide: 'Fine inhalable particles from vehicle exhaust, smoke, and industrial emissions that can reach deep into the lungs.'
+    guide: 'Fine inhalable particles (≤2.5 µm) from vehicle exhaust, smoke, and industrial emissions that can travel deep into the lungs.'
   },
   pm10: {
     key: 'pm10',
@@ -56,7 +121,7 @@ export const POLLUTANTS: Record<string, PollutantInfo> = {
     good: 20,
     fair: 50,
     yAxisID: 'y',
-    guide: 'Coarse airborne particles from road dust, construction, and pollen that can irritate eyes and airways.'
+    guide: 'Coarse airborne particles (≤10 µm) from road dust, construction, and pollen that irritate eyes, nose, and upper airways.'
   },
   nitrogen_dioxide: {
     key: 'nitrogen_dioxide',
@@ -67,7 +132,7 @@ export const POLLUTANTS: Record<string, PollutantInfo> = {
     good: 40,
     fair: 100,
     yAxisID: 'y',
-    guide: 'Traffic and fuel-combustion gas that typically spikes near busy highways or during low-wind conditions.'
+    guide: 'Traffic and fuel-combustion gas that spikes near busy roadways or during calm, low-wind conditions.'
   },
   ozone: {
     key: 'ozone',
@@ -157,6 +222,19 @@ export function getPollutantStatus(key: string, val: number | null | undefined) 
   return { label: 'Poor', tier: 'poor' };
 }
 
+export function renderHorizonToggle(
+  horizon: TimeHorizon,
+  ids: { hist: string; both: string; fore: string }
+): string {
+  return `
+    <div class="segmented-toggle">
+      <button id="${ids.hist}" class="segmented-btn ${horizon === 'historical' ? 'active' : ''}">Historical (Past 7d)</button>
+      <button id="${ids.both}" class="segmented-btn ${horizon === 'both' ? 'active' : ''}">Both (14d)</button>
+      <button id="${ids.fore}" class="segmented-btn ${horizon === 'forecast' ? 'active' : ''}">Forecast (Next 7d)</button>
+    </div>
+  `;
+}
+
 export function renderBasicAqiCards(aqiVal: number | null | undefined, headingLabel: string): string {
   const guidance = getAqiGuidance(aqiVal);
   const displayScore = aqiVal !== null && aqiVal !== undefined && !isNaN(aqiVal) ? Math.round(aqiVal) : '--';
@@ -201,7 +279,7 @@ export function buildLineChart(
   canvas: HTMLCanvasElement,
   existingChart: Chart | null,
   timestamps: string[],
-  horizon: 'historical' | 'forecast',
+  horizon: TimeHorizon,
   seriesList: ChartSeriesInput[],
   yAxisTitle: string
 ): Chart | null {
@@ -211,10 +289,18 @@ export function buildLineChart(
 
   const now = Date.now();
   const indices: number[] = [];
+  let splitPosition = -1;
+
   timestamps.forEach((tStr, idx) => {
     const ts = new Date(tStr).getTime();
-    if (horizon === 'historical' && ts <= now) indices.push(idx);
-    if (horizon === 'forecast' && ts > now) indices.push(idx);
+    if (horizon === 'historical' && ts <= now) {
+      indices.push(idx);
+    } else if (horizon === 'forecast' && ts > now) {
+      indices.push(idx);
+    } else if (horizon === 'both') {
+      indices.push(idx);
+      if (ts <= now) splitPosition = indices.length - 1;
+    }
   });
 
   const labels = indices.map((idx) => {
@@ -230,9 +316,11 @@ export function buildLineChart(
 
   const datasets = seriesList.map((s) => {
     const color = getCssVar(s.cssVar) || getCssVar('--accent');
+    const values = indices.map((idx) => s.data[idx] ?? null);
+
     return {
       label: s.label,
-      data: indices.map((idx) => s.data[idx] ?? null),
+      data: values,
       borderColor: color,
       backgroundColor: 'transparent',
       yAxisID: hasSecondary ? (s.yAxisID || 'y') : 'y',
@@ -241,14 +329,21 @@ export function buildLineChart(
       pointHoverRadius: 4,
       pointHitRadius: 16,
       tension: 0.2,
-      spanGaps: true
+      spanGaps: true,
+      borderDash: horizon === 'forecast' ? [6, 4] : undefined,
+      segment:
+        horizon === 'both'
+          ? {
+              borderDash: (ctx: any) => (ctx.p0DataIndex >= splitPosition ? [6, 4] : undefined)
+            }
+          : undefined
     };
   });
 
   const scales: any = {
     x: {
       grid: { display: false },
-      ticks: { color: textMuted, maxTicksLimit: 6, font: { size: 11 } }
+      ticks: { color: textMuted, maxTicksLimit: horizon === 'both' ? 8 : 6, font: { size: 11 } }
     },
     y: {
       type: 'linear',
@@ -290,10 +385,99 @@ export function buildLineChart(
           bodyColor: textMain,
           borderColor: borderMuted,
           borderWidth: 1,
-          padding: 10
+          padding: 10,
+          callbacks: {
+            title: (items) => {
+              if (!items.length) return '';
+              const idx = items[0].dataIndex;
+              const tag =
+                horizon === 'both'
+                  ? idx > splitPosition
+                    ? ' (Forecast)'
+                    : ' (Observed)'
+                  : horizon === 'forecast'
+                    ? ' (Forecast)'
+                    : '';
+              return `${items[0].label}${tag}`;
+            }
+          }
         }
       },
       scales
+    }
+  });
+}
+
+export function buildCityBarChart(
+  canvas: HTMLCanvasElement,
+  existingChart: Chart | null,
+  cities: { name: string; isUserCity?: boolean; value: number | null }[],
+  metricLabel: string,
+  unitLabel: string
+): Chart | null {
+  if (existingChart) {
+    existingChart.destroy();
+  }
+
+  const textMain = getCssVar('--text-main');
+  const textMuted = getCssVar('--text-muted');
+  const borderMuted = getCssVar('--border-muted');
+  const bgCard = getCssVar('--bg-card');
+  const accent = getCssVar('--accent');
+  const accentSecondary = getCssVar('--accent-secondary');
+
+  const labels = cities.map((c) => (c.isUserCity ? `${c.name} (You)` : c.name));
+  const data = cities.map((c) => c.value ?? 0);
+  const bgColors = cities.map((c) => (c.isUserCity ? accentSecondary : accent));
+
+  return new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: unitLabel ? `${metricLabel} (${unitLabel})` : metricLabel,
+          data,
+          backgroundColor: bgColors,
+          borderRadius: 6,
+          maxBarThickness: 44
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: bgCard,
+          titleColor: textMain,
+          bodyColor: textMain,
+          borderColor: borderMuted,
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            label: (ctx) => `${metricLabel}: ${ctx.raw}${unitLabel ? ` ${unitLabel}` : ''}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { color: textMuted, font: { size: 11 } }
+        },
+        y: {
+          beginAtZero: true,
+          title: {
+            display: true,
+            text: unitLabel ? `${metricLabel} (${unitLabel})` : metricLabel,
+            color: textMain,
+            font: { size: 11 }
+          },
+          grid: { color: borderMuted },
+          ticks: { color: textMuted, font: { size: 11 } }
+        }
+      }
     }
   });
 }
