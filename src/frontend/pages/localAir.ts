@@ -2,9 +2,12 @@ import Chart from 'chart.js/auto';
 import {
   POLLUTANTS,
   POLLUTANT_LIST,
+  TimeHorizon,
   getPollutantStatus,
   renderBasicAqiCards,
-  buildLineChart
+  renderHorizonToggle,
+  buildLineChart,
+  syncUserDetectedCity
 } from '../config';
 
 let localChartInstance: Chart | null = null;
@@ -13,7 +16,7 @@ let currentSnapshotData: any = null;
 let activeTimelineMetric: string = 'pm2_5';
 let activeDisplayMode: 'mean' | 'current' = 'mean';
 let activeExperienceMode: 'basic' | 'advanced' = 'basic';
-let activeTimeHorizon: 'historical' | 'forecast' = 'historical';
+let activeTimeHorizon: TimeHorizon = 'both';
 let isEditingLocation: boolean = false;
 
 let activeLocation: {
@@ -78,17 +81,26 @@ async function loadLocalAirData(overrideCity?: string) {
       throw new Error(`Could not find coordinates for "${targetCity}".`);
     }
 
-    const { latitude, longitude, name, country } = geoData.results[0];
+    const { latitude, longitude, name, country, country_code } = geoData.results[0];
+    const resolvedCountry = country || detectedCountry;
+
     activeLocation = {
       city: name,
-      country: country || detectedCountry,
+      country: resolvedCountry,
       latitude,
       longitude,
       isManual: Boolean(overrideCity || activeLocation?.isManual)
     };
 
+    syncUserDetectedCity({
+      name,
+      state: country_code || resolvedCountry.slice(0, 3).toUpperCase() || 'LOC',
+      lat: latitude,
+      lon: longitude
+    });
+
     const aqRes = await fetch(
-      `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${latitude}&longitude=${longitude}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&hourly=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&past_days=5&forecast_days=5`
+      `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${latitude}&longitude=${longitude}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&hourly=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&past_days=7&forecast_days=7`
     );
     const aqData = await aqRes.json();
 
@@ -162,10 +174,10 @@ function renderPageLayout() {
       <div class="header">
         <h1>Your City's Air Quality</h1>
         <div class="location-meta-row">
-          <p class="subtitle">
+          <span class="subtitle">
             ${city}${country ? `, ${country}` : ''} (${latitude.toFixed(2)}°N, ${longitude.toFixed(2)}°E)
-            <span class="status-pill text-accent">${isManual ? 'Manual' : 'Auto-Detected'}</span>
-          </p>
+          </span>
+          <span class="status-pill text-accent">${isManual ? 'Manual' : 'Auto-Detected'}</span>
           <button id="toggleEditCityBtn" class="btn-ghost">
             ${isEditingLocation ? 'Cancel' : 'Change City'}
           </button>
@@ -204,12 +216,13 @@ function renderPageLayout() {
             <h2 class="section-title">
               ${activeExperienceMode === 'basic' ? 'General AQI Trend' : `${POLLUTANTS[activeTimelineMetric].label} Trend`}
             </h2>
-            <p class="subtitle">Switch between past observations and upcoming forecasts.</p>
+            <p class="subtitle">Solid line shows past observations; dashed line shows 7-day forecast.</p>
           </div>
-          <div class="segmented-toggle">
-            <button id="toggleHistoricalBtn" class="segmented-btn ${activeTimeHorizon === 'historical' ? 'active' : ''}">Historical (Past 5d)</button>
-            <button id="toggleForecastBtn" class="segmented-btn ${activeTimeHorizon === 'forecast' ? 'active' : ''}">Forecast (Next 5d)</button>
-          </div>
+          ${renderHorizonToggle(activeTimeHorizon, {
+            hist: 'toggleHistoricalBtn',
+            both: 'toggleBothBtn',
+            fore: 'toggleForecastBtn'
+          })}
         </div>
 
         <div class="chart-wrapper chart-wrapper-md">
@@ -326,6 +339,13 @@ function setupPageListeners() {
   document.getElementById('toggleHistoricalBtn')?.addEventListener('click', () => {
     if (activeTimeHorizon !== 'historical') {
       activeTimeHorizon = 'historical';
+      renderPageLayout();
+    }
+  });
+
+  document.getElementById('toggleBothBtn')?.addEventListener('click', () => {
+    if (activeTimeHorizon !== 'both') {
+      activeTimeHorizon = 'both';
       renderPageLayout();
     }
   });

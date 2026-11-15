@@ -1,13 +1,17 @@
 import Chart from 'chart.js/auto';
 import {
+  POLLUTANTS,
   POLLUTANT_LIST,
+  TimeHorizon,
   getPollutantStatus,
   renderBasicAqiCards,
+  renderHorizonToggle,
   buildLineChart
 } from '../config';
 
 let searchMode: 'basic' | 'advanced' = 'basic';
-let searchHorizon: 'historical' | 'forecast' = 'historical';
+let searchHorizon: TimeHorizon = 'both';
+let activeSearchMetric: string = 'pm2_5';
 let lastSearchPayload: any = null;
 let searchChartInstance: Chart | null = null;
 
@@ -19,7 +23,7 @@ export function renderGlobalQuery() {
     <div class="container">
       <div class="header">
         <h1>Live Search</h1>
-        <p class="subtitle">Search any city worldwide to check its General AQI, historical trends, and pollutant breakdown.</p>
+        <p class="subtitle">Search any city worldwide to check its General AQI, 7-day trends, and pollutant breakdown.</p>
       </div>
 
       <div class="aqi-card container-medium">
@@ -71,7 +75,7 @@ async function handleAuditSubmit(e: Event) {
     const { latitude, longitude, name, country } = geoData.results[0];
 
     const aqRes = await fetch(
-      `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${latitude}&longitude=${longitude}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&hourly=us_aqi,pm2_5&past_days=5&forecast_days=5`
+      `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${latitude}&longitude=${longitude}&current=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&hourly=us_aqi,pm10,pm2_5,carbon_monoxide,nitrogen_dioxide,sulphur_dioxide,ozone&past_days=7&forecast_days=7`
     );
     if (!aqRes.ok) throw new Error('Air quality data unavailable.');
     const aqData = await aqRes.json();
@@ -114,13 +118,14 @@ function renderSearchResult() {
       </div>`
     : '';
 
+  const activeMeta = POLLUTANTS[activeSearchMetric];
   const advancedPollutantCards = POLLUTANT_LIST.map((meta) => {
     const val = current[meta.key];
     const displayVal = val !== undefined && val !== null ? val.toFixed(1) : '--';
     const status = getPollutantStatus(meta.key, val);
 
     return `
-      <div class="info-card static-card accent-${meta.key}">
+      <div class="info-card search-metric-card accent-${meta.key} ${activeSearchMetric === meta.key ? 'active-card' : ''}" data-metric="${meta.key}">
         <h3>${meta.label}</h3>
         <div class="metric-val">
           ${displayVal} <span class="metric-unit">${meta.unit}</span>
@@ -130,20 +135,13 @@ function renderSearchResult() {
     `;
   }).join('');
 
-  const advancedSectionHtml = `
+  const advancedOverviewHtml = `
     <div class="info-grid">${advancedPollutantCards}</div>
-
-    <div class="timeline-panel">
-      <div class="timeline-panel-header">
-        <span class="card-kicker">General AQI Trend</span>
-        <div class="segmented-toggle">
-          <button id="searchHistBtn" class="segmented-btn ${searchHorizon === 'historical' ? 'active' : ''}">Historical (Past 5d)</button>
-          <button id="searchForeBtn" class="segmented-btn ${searchHorizon === 'forecast' ? 'active' : ''}">Forecast (Next 5d)</button>
-        </div>
-      </div>
-      <div class="chart-wrapper chart-wrapper-sm">
-        <canvas id="searchTimelineCanvas"></canvas>
-      </div>
+    <div class="guidance-banner">
+      <h4 class="card-kicker title-${activeMeta.key}">
+        ${activeMeta.label} Guide (Click any pollutant card above to view its trend)
+      </h4>
+      <p class="subtitle">${activeMeta.guide}</p>
     </div>
     ${alertMarkup}
   `;
@@ -162,7 +160,26 @@ function renderSearchResult() {
         </div>
       </div>
 
-      ${searchMode === 'basic' ? renderBasicAqiCards(current.us_aqi, 'General AQI') : advancedSectionHtml}
+      ${searchMode === 'basic' ? renderBasicAqiCards(current.us_aqi, 'General AQI') : advancedOverviewHtml}
+
+      <div class="timeline-panel">
+        <div class="timeline-panel-header">
+          <div>
+            <span class="card-kicker">
+              ${searchMode === 'basic' ? 'General AQI Trend' : `${activeMeta.label} Trend`}
+            </span>
+            <p class="subtitle">Solid line shows past observations; dashed line shows 7-day forecast.</p>
+          </div>
+          ${renderHorizonToggle(searchHorizon, {
+            hist: 'searchHistBtn',
+            both: 'searchBothBtn',
+            fore: 'searchForeBtn'
+          })}
+        </div>
+        <div class="chart-wrapper chart-wrapper-sm">
+          <canvas id="searchTimelineCanvas"></canvas>
+        </div>
+      </div>
     </div>
   `;
 
@@ -176,29 +193,51 @@ function renderSearchResult() {
     renderSearchResult();
   });
 
-  if (searchMode === 'advanced') {
-    document.getElementById('searchHistBtn')?.addEventListener('click', () => {
-      searchHorizon = 'historical';
+  document.getElementById('searchHistBtn')?.addEventListener('click', () => {
+    searchHorizon = 'historical';
+    renderSearchResult();
+  });
+
+  document.getElementById('searchBothBtn')?.addEventListener('click', () => {
+    searchHorizon = 'both';
+    renderSearchResult();
+  });
+
+  document.getElementById('searchForeBtn')?.addEventListener('click', () => {
+    searchHorizon = 'forecast';
+    renderSearchResult();
+  });
+
+  document.querySelectorAll('.search-metric-card').forEach((card) => {
+    card.addEventListener('click', () => {
+      activeSearchMetric = card.getAttribute('data-metric') || 'pm2_5';
       renderSearchResult();
     });
-    document.getElementById('searchForeBtn')?.addEventListener('click', () => {
-      searchHorizon = 'forecast';
-      renderSearchResult();
-    });
-    renderSearchChart();
-  }
+  });
+
+  renderSearchChart();
 }
 
 function renderSearchChart() {
   const ctx = document.getElementById('searchTimelineCanvas') as HTMLCanvasElement;
   if (!ctx || !lastSearchPayload?.hourly?.time) return;
 
+  const isBasic = searchMode === 'basic';
+  const metricKey = isBasic ? 'us_aqi' : activeSearchMetric;
+  const meta = POLLUTANTS[metricKey];
+
   searchChartInstance = buildLineChart(
     ctx,
     searchChartInstance,
     lastSearchPayload.hourly.time,
     searchHorizon,
-    [{ label: 'General AQI', data: lastSearchPayload.hourly.us_aqi || [], cssVar: '--accent' }],
-    'General AQI'
+    [
+      {
+        label: isBasic ? 'General AQI' : `${meta.label} (${meta.unit})`,
+        data: lastSearchPayload.hourly[metricKey] || [],
+        cssVar: isBasic ? '--accent' : meta.cssVar
+      }
+    ],
+    isBasic ? 'General AQI' : `${meta.shortLabel} (${meta.unit})`
   );
 }
